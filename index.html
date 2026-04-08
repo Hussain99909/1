@@ -74,7 +74,7 @@
             border-color: var(--primary-green);
         }
 
-        /* --- تصميم حاوية الكاميرا --- */
+        /* --- تصميم حاوية الكاميرا المدمجة --- */
         #reader-wrapper {
             display: none;
             margin-bottom: 15px;
@@ -84,9 +84,10 @@
             position: relative;
             background: #000;
             width: 100%;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
         }
         #reader { width: 100%; background: #000; }
+        
+        /* أزرار التحكم بالكاميرا */
         .close-cam {
             position: absolute;
             top: 10px; left: 10px;
@@ -94,32 +95,16 @@
             color: white; border: none; padding: 6px 12px; border-radius: 6px;
             z-index: 10; font-family: 'Cairo'; font-weight: bold; cursor: pointer;
         }
-        
-        /* قسم البديل (التقاط صورة) */
-        .fallback-section {
-            background: #1a252f;
-            padding: 10px;
-            text-align: center;
-            border-top: 1px solid #34495e;
+        .capture-cam {
+            position: absolute;
+            top: 10px; right: 10px;
+            background: rgba(13, 110, 253, 0.9);
+            color: white; border: none; padding: 6px 12px; border-radius: 6px;
+            z-index: 10; font-family: 'Cairo'; font-weight: bold; cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
-        .fallback-btn {
-            background: var(--primary-blue);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-family: 'Cairo';
-            font-weight: bold;
-            font-size: 0.95rem;
-            cursor: pointer;
-            width: 90%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin: 0 auto;
-        }
-        
+
+        /* إخفاء شعار مكتبة html5-qrcode */
         #reader__dashboard_section_csr span, #reader__dashboard_section_csr a { display: none !important; }
 
         /* نظام البطاقات */
@@ -156,25 +141,72 @@
             box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2);
             transition: transform 0.1s;
         }
-        .save-btn-top:active { transform: scale(0.95); }
-        .card-header-action { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+        .save-btn-top:active {
+            transform: scale(0.95);
+        }
+        .card-header-action {
+            display: flex;
+            justify-content: flex-end; 
+            margin-bottom: 8px;
+        }
 
-        .card-row-top { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 6px; margin-bottom: 10px; }
-        .card-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+        .card-row-top {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1.5fr;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .card-row-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 10px;
+        }
 
-        .input-group-inline { display: flex; flex-direction: column; }
-        .input-group-inline label { font-size: 0.7rem; color: #6c757d; margin-bottom: 3px; font-weight: 700; }
+        .input-group-inline {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group-inline label {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 3px;
+            font-weight: 700;
+        }
         
         .inline-input {
-            width: 100%; height: 40px; padding: 0 6px; border: 1px solid #ced4da;
-            border-radius: 6px; font-family: 'Cairo'; font-weight: bold;
-            font-size: 0.85rem; text-align: center; box-sizing: border-box;
+            width: 100%;
+            height: 40px; 
+            padding: 0 6px; 
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-family: 'Cairo';
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-align: center;
+            box-sizing: border-box;
             background-color: #fdfdfd;
         }
-        .inline-input:focus { border-color: var(--primary-blue); outline: none; background-color: #eef5ff; }
+        .inline-input:focus {
+            border-color: var(--primary-blue);
+            outline: none;
+            background-color: #eef5ff;
+        }
         
-        .readonly-input { background-color: #e9ecef; color: #495057; cursor: not-allowed; border: 1px dashed #ced4da; font-size: 0.75rem; }
-        .date-input { direction: ltr; text-align: center; position: relative; font-size: 0.8rem; }
+        .readonly-input {
+            background-color: #e9ecef;
+            color: #495057;
+            cursor: not-allowed;
+            border: 1px dashed #ced4da;
+            font-size: 0.75rem; 
+        }
+        
+        .date-input {
+            direction: ltr; 
+            text-align: center;
+            position: relative;
+            font-size: 0.8rem;
+        }
 
         #toast {
             visibility: hidden; min-width: 200px; background-color: var(--primary-green);
@@ -206,14 +238,10 @@
 
         <div id="reader-wrapper">
             <button class="close-cam" id="stop-cam">إغلاق X</button>
+            <button class="capture-cam" id="capture-btn" title="التقط صورة للباركود الصعب">📸 التقاط دقيق</button>
+            <input type="file" id="qr-upload" accept="image/*" capture="environment" style="display: none;">
+            
             <div id="reader"></div>
-            <div class="fallback-section">
-                <button class="fallback-btn" id="trigger-file-upload">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    الكاميرا لا تقرأ؟ التقط صورة
-                </button>
-                <input type="file" id="file-scan-input" accept="image/*" capture="environment" style="display: none;">
-            </div>
         </div>
 
         <div id="search-results"></div>
@@ -242,7 +270,9 @@
 
         document.addEventListener('focusin', (e) => {
             if (e.target && e.target.tagName === 'INPUT' && typeof e.target.select === 'function') {
-                setTimeout(() => { e.target.select(); }, 10);
+                setTimeout(() => {
+                    e.target.select();
+                }, 10);
             }
         });
 
@@ -300,8 +330,10 @@
             if (doc.exists) {
                 inventory = JSON.parse(doc.data().jsonData);
                 updateStatus();
+                
                 if(searchInput.value.trim() === '') {
-                    displayLimit = 20; loadDefaultInventory();
+                    displayLimit = 20; 
+                    loadDefaultInventory();
                 }
             }
         });
@@ -315,7 +347,10 @@
         const resultsDiv = document.getElementById('search-results');
 
         function loadDefaultInventory() {
-            if (inventory.length === 0) { resultsDiv.style.display = 'none'; return; }
+            if (inventory.length === 0) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
             renderCards(inventory.slice(0, displayLimit));
         }
 
@@ -323,14 +358,19 @@
             if (searchInput.value.trim() !== '') return; 
             if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
                 if (displayLimit < inventory.length) {
-                    displayLimit += 20; loadDefaultInventory();
+                    displayLimit += 20; 
+                    loadDefaultInventory();
                 }
             }
         });
 
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.trim().toLowerCase();
-            if (query.length === 0) { displayLimit = 20; loadDefaultInventory(); return; }
+            if (query.length === 0) { 
+                displayLimit = 20;
+                loadDefaultInventory();
+                return; 
+            }
             const matches = inventory.filter(i => i.name.toLowerCase().includes(query) || i.barcode.includes(query)).slice(0, 30);
             renderCards(matches);
         });
@@ -460,16 +500,20 @@
                 setTimeout(() => document.getElementById('toast').classList.remove('show'), 2000);
                 updateStatus();
                 
-                if(isNew) { displayLimit = 20; searchInput.value = ''; loadDefaultInventory(); }
+                if(isNew) {
+                     displayLimit = 20;
+                     searchInput.value = '';
+                     loadDefaultInventory();
+                }
             } catch (e) {
-                alert("تم الحفظ محلياً (بانتظار الإنترنت)"); updateStatus();
+                alert("تم الحفظ محلياً (بانتظار الإنترنت)");
+                updateStatus();
             }
         }
         
-        // --- إعدادات الكاميرا المدمجة + تقنية المسح عبر الصورة ---
+        // --- إعدادات الكاميرا والالتقاط الدقيق ---
         let html5QrCode = null;
 
-        // 1. فتح الكاميرا المباشرة بدقة عالية
         document.getElementById('start-cam').addEventListener('click', () => {
             const wrapper = document.getElementById('reader-wrapper');
             wrapper.style.display = 'block'; 
@@ -479,80 +523,39 @@
             html5QrCode = new Html5Qrcode("reader");
             
             const config = { 
-                fps: 15,
+                fps: 15, 
                 qrbox: { width: 300, height: 120 }, 
+                aspectRatio: 1.0, 
                 formatsToSupport: [ 
                     Html5QrcodeSupportedFormats.EAN_13, 
+                    Html5QrcodeSupportedFormats.EAN_8,
                     Html5QrcodeSupportedFormats.UPC_A, 
                     Html5QrcodeSupportedFormats.CODE_128,
                     Html5QrcodeSupportedFormats.CODE_39
                 ]
             };
             
-            // طلب دقة عالية (HD) لإجبار المتصفح على عرض الخطوط بوضوح
             const cameraConstraints = {
                 facingMode: "environment",
-                width: { min: 1280, ideal: 1920 } 
+                advanced: [{ focusMode: "continuous" }] 
             };
             
             html5QrCode.start(cameraConstraints, config, (decodedText) => {
-                handleSuccessfulScan(decodedText);
+                if (navigator.vibrate) navigator.vibrate(200); 
+                stopCamera();
+                searchInput.value = decodedText; 
+                searchInput.dispatchEvent(new Event('input')); 
             }).catch(err => {
                 console.error(err);
-                alert("لم نتمكن من تشغيل الكاميرا بجودة عالية. استخدم زر التقاط الصورة بدلاً من ذلك.");
+                alert("يرجى إعطاء الصلاحيات للمتصفح للوصول إلى الكاميرا.");
+                wrapper.style.display = 'none';
             });
         });
-
-        // 2. تفعيل تقنية التقاط الصورة وتحليلها
-        document.getElementById('trigger-file-upload').addEventListener('click', () => {
-            document.getElementById('file-scan-input').click();
-        });
-
-        document.getElementById('file-scan-input').addEventListener('change', (e) => {
-            if (e.target.files.length === 0) return;
-            const imageFile = e.target.files[0];
-            
-            const sb = document.getElementById('status-bar');
-            sb.textContent = 'جاري تحليل الصورة... ⏳';
-
-            // إيقاف الكاميرا الحية إذا كانت تعمل قبل تحليل الصورة
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => analyzeImageFile(imageFile)).catch(() => analyzeImageFile(imageFile));
-            } else {
-                analyzeImageFile(imageFile);
-            }
-        });
-
-        function analyzeImageFile(file) {
-            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-            
-            html5QrCode.scanFile(file, true)
-                .then(decodedText => {
-                    handleSuccessfulScan(decodedText);
-                    document.getElementById('status-bar').textContent = 'تمت القراءة من الصورة بنجاح ✓';
-                    setTimeout(updateStatus, 2000);
-                })
-                .catch(err => {
-                    alert('لم يتعرف النظام على الباركود في هذه الصورة. تأكد من أن الصورة واضحة، بدون انعكاس ضوء لامع، وأن الباركود يملأ الشاشة.');
-                    updateStatus();
-                });
-            
-            // تفريغ المدخل ليسمح باختيار نفس الصورة مرة أخرى إذا لزم الأمر
-            document.getElementById('file-scan-input').value = "";
-        }
-
-        // دالة موحدة للتعامل مع النجاح (من الكاميرا أو الصورة)
-        function handleSuccessfulScan(decodedText) {
-            if (navigator.vibrate) navigator.vibrate(200); 
-            stopCamera();
-            searchInput.value = decodedText; 
-            searchInput.dispatchEvent(new Event('input')); 
-        }
 
         document.getElementById('stop-cam').addEventListener('click', stopCamera);
 
         function stopCamera() {
-            if (html5QrCode && html5QrCode.isScanning) {
+            if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('reader-wrapper').style.display = 'none';
                     html5QrCode.clear(); 
@@ -562,6 +565,56 @@
             } else {
                 document.getElementById('reader-wrapper').style.display = 'none';
             }
+        }
+
+        // --- ميزة الالتقاط الدقيق (تحليل صورة ثابتة) ---
+        const captureBtn = document.getElementById('capture-btn');
+        const qrUpload = document.getElementById('qr-upload');
+
+        // فتح الكاميرا الأصلية للهاتف لالتقاط صورة عالية الدقة
+        captureBtn.addEventListener('click', () => {
+            qrUpload.click(); 
+        });
+
+        qrUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // إيقاف البث الحي للكاميرا لتوفير الذاكرة قبل تحليل الصورة
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    processImageFile(file);
+                }).catch(() => processImageFile(file));
+            } else {
+                processImageFile(file);
+            }
+        });
+
+        function processImageFile(file) {
+            const originalText = captureBtn.innerHTML;
+            captureBtn.innerHTML = 'جاري التحليل... ⏳';
+            
+            // نستخدم نسخة جديدة للتحليل الثابت لكامل الصورة
+            const tempScanner = new Html5Qrcode("reader");
+            
+            // true تعني إظهار الصورة التي تم التقاطها في المربع لثانية
+            tempScanner.scanFile(file, true)
+                .then(decodedText => {
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    document.getElementById('reader-wrapper').style.display = 'none';
+                    searchInput.value = decodedText;
+                    searchInput.dispatchEvent(new Event('input')); // بدء البحث تلقائياً
+                })
+                .catch(err => {
+                    alert('لم نتمكن من قراءة الباركود. حاول تشغيل (الفلاش) أو إبعاد الهاتف قليلاً ليكون الباركود واضحاً.');
+                    // إعادة تشغيل الكاميرا الحية تلقائياً للمحاولة مرة أخرى
+                    document.getElementById('start-cam').click();
+                })
+                .finally(() => {
+                    captureBtn.innerHTML = originalText;
+                    qrUpload.value = ''; // إعادة تعيين حقل الملف لتمكين التقاط صورة أخرى
+                    tempScanner.clear();
+                });
         }
     </script>
 </body>
