@@ -35,7 +35,6 @@
         }
         .container { padding: 15px; }
 
-        /* منطقة البحث والكاميرا */
         .search-section {
             display: flex;
             gap: 8px;
@@ -70,9 +69,7 @@
             cursor: pointer;
             flex-shrink: 0;
         }
-        .btn-add {
-            border-color: var(--primary-green);
-        }
+        .btn-add { border-color: var(--primary-green); }
 
         /* --- تنسيقات الكاميرا المحدثة --- */
         #reader-wrapper {
@@ -83,7 +80,7 @@
             border: 2px solid var(--primary-blue);
             position: relative;
             background: #000;
-            max-height: 320px; /* منع الكاميرا من تغطية الشاشة بالكامل */
+            max-height: 400px; /* تم زيادة الارتفاع قليلاً */
         }
         
         #native-video-container {
@@ -96,26 +93,25 @@
         
         #native-video {
             width: 100%;
-            height: 320px;
-            object-fit: cover;
+            height: 350px;
+            /* تغيير من cover إلى contain لمنع الزوم الإجباري من المتصفح */
+            object-fit: contain; 
             display: block;
         }
         
-        /* المستطيل الوهمي للمسح (مخصص للباركود الخطي) */
         .scanner-guide {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 75%; /* مستطيل عريض */
-            height: 110px; /* ارتفاع قصير */
+            width: 75%; 
+            height: 110px; 
             border: 3px solid rgba(25, 135, 84, 0.9);
             border-radius: 10px;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55); /* تعتيم ما حول المستطيل */
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65); 
             pointer-events: none;
             z-index: 5;
         }
         
-        /* خط المسح المتحرك */
         .scanner-guide::after { 
             content: '';
             position: absolute;
@@ -131,6 +127,33 @@
             100% { top: 0; }
         }
 
+        /* --- شريط التحكم بالزوم --- */
+        #zoom-control {
+            display: none;
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            z-index: 20;
+            background: rgba(0,0,0,0.6);
+            padding: 10px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+        #zoom-control label {
+            color: white;
+            font-size: 0.8rem;
+            display: block;
+            text-align: center;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--primary-blue);
+        }
+
         #reader { width: 100%; background: #000; }
 
         .close-cam {
@@ -143,46 +166,23 @@
 
         /* نظام البطاقات */
         #search-results {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            margin-bottom: 15px;
-            padding-bottom: 80px;
+            display: flex; flex-direction: column; gap: 15px;
+            margin-bottom: 15px; padding-bottom: 80px;
         }
         .result-card {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
-            border: 1px solid var(--border-color);
-            position: relative;
+            background: white; border-radius: 12px; padding: 15px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.06); border: 1px solid var(--border-color);
         }
 
         .save-btn-top {
-            background-color: var(--primary-green);
-            color: white; 
-            border: none; 
-            border-radius: 6px;
-            padding: 5px 12px; 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center;
-            gap: 5px;
-            cursor: pointer; 
-            font-family: 'Cairo'; 
-            font-weight: bold;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2);
-            transition: transform 0.1s;
+            background-color: var(--primary-green); color: white; border: none; 
+            border-radius: 6px; padding: 5px 12px; display: inline-flex; 
+            align-items: center; justify-content: center; gap: 5px;
+            cursor: pointer; font-family: 'Cairo'; font-weight: bold; font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2); transition: transform 0.1s;
         }
-        .save-btn-top:active {
-            transform: scale(0.95);
-        }
-        .card-header-action {
-            display: flex;
-            justify-content: flex-end; 
-            margin-bottom: 8px;
-        }
+        .save-btn-top:active { transform: scale(0.95); }
+        .card-header-action { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
         .card-row-top { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 6px; margin-bottom: 10px; }
         .card-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
@@ -191,15 +191,14 @@
         .input-group-inline label { font-size: 0.7rem; color: #6c757d; margin-bottom: 3px; font-weight: 700; }
         
         .inline-input {
-            width: 100%; height: 40px; padding: 0 6px; 
-            border: 1px solid #ced4da; border-radius: 6px;
+            width: 100%; height: 40px; padding: 0 6px; border: 1px solid #ced4da; border-radius: 6px;
             font-family: 'Cairo'; font-weight: bold; font-size: 0.85rem;
             text-align: center; box-sizing: border-box; background-color: #fdfdfd;
         }
         .inline-input:focus { border-color: var(--primary-blue); outline: none; background-color: #eef5ff; }
         
         .readonly-input { background-color: #e9ecef; color: #495057; cursor: not-allowed; border: 1px dashed #ced4da; font-size: 0.75rem; }
-        .date-input { direction: ltr; text-align: center; position: relative; font-size: 0.8rem; }
+        .date-input { direction: ltr; text-align: center; font-size: 0.8rem; }
 
         #toast {
             visibility: hidden; min-width: 200px; background-color: var(--primary-green);
@@ -221,7 +220,7 @@
             <div class="search-wrapper">
                 <input type="text" id="main-search" class="search-input" placeholder="ابحث بالاسم أو الباركود...">
             </div>
-            <button class="action-btn btn-add" id="add-new-btn" title="إضافة مادة جديدة" onclick="showAddNewCard()">
+            <button class="action-btn btn-add" id="add-new-btn" onclick="showAddNewCard()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#198754" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
             <button class="action-btn" id="start-cam">
@@ -232,6 +231,11 @@
         <div id="reader-wrapper">
             <button class="close-cam" id="stop-cam">إغلاق X</button>
             
+            <div id="zoom-control">
+                <label for="zoom-slider">🔍 تقريب / تبعيد الكاميرا</label>
+                <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
+            </div>
+
             <div id="native-video-container">
                 <video id="native-video" autoplay playsinline></video>
                 <div class="scanner-guide"></div>
@@ -290,7 +294,6 @@
             const singles = parseInt(document.getElementById(`bal-${safeId}`).value.replace(/,/g, '')) || 0;
             const packaging = parseInt(document.getElementById(`pkg-${safeId}`).value.replace(/,/g, '')) || 1;
             const form = document.getElementById(`form-${safeId}`).value || 'قطعة';
-            
             const packBalEl = document.getElementById(`packbal-${safeId}`);
             
             if (packaging === 1) { packBalEl.value = `${singles} ${form}`; } 
@@ -368,7 +371,6 @@
             } else {
                 if (query.length >= 5 && /^[a-zA-Z0-9]+$/.test(query)) {
                     renderCards([{ name: '', barcode: query, form: '', singlesBalance: '0', price: '0', cost: '0', packaging: '1', expirationDate: '' }], true);
-                    
                     const infoMsg = document.createElement('div');
                     infoMsg.style = "text-align:center; color: var(--primary-green); padding: 5px; font-weight:bold; font-size: 0.9rem; margin-bottom: 10px;";
                     infoMsg.innerText = "المادة غير موجودة بالنظام، يرجى إضافتها.";
@@ -393,7 +395,7 @@
             resultsDiv.innerHTML = '';
             if (items.length === 0 && !isNewMode) { resultsDiv.style.display = 'none'; return; }
             
-            items.forEach((item, index) => {
+            items.forEach((item) => {
                 const safeId = 'id' + Math.random().toString(36).substr(2, 9);
                 const packBalText = getInitialPackBalance(item.singlesBalance, item.packaging, item.form);
 
@@ -504,10 +506,13 @@
             }
         }
         
-        // --- إعدادات الكاميرا والمستطيل المخصص ---
+        // --- إعدادات الكاميرا والزوم ---
         const videoElement = document.getElementById('native-video');
         const nativeContainer = document.getElementById('native-video-container');
         const readerDiv = document.getElementById('reader');
+        const zoomControl = document.getElementById('zoom-control');
+        const zoomSlider = document.getElementById('zoom-slider');
+        
         let currentStream = null;
         let html5QrCode = null; 
 
@@ -517,8 +522,8 @@
             // دقة الكاميرا لتوضيح الباركود
             const videoConstraints = {
                 facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+                width: { ideal: 1920 }, // تم تعديلها لتناسب الهواتف الحديثة
+                height: { ideal: 1080 }
             };
 
             if ('BarcodeDetector' in window) {
@@ -528,6 +533,24 @@
                 try {
                     currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
                     videoElement.srcObject = currentStream;
+
+                    // تفعيل ميزة الزوم إذا كانت الكاميرا تدعمها
+                    const track = currentStream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities();
+                    
+                    if (capabilities.zoom) {
+                        zoomControl.style.display = 'block';
+                        zoomSlider.min = capabilities.zoom.min;
+                        zoomSlider.max = capabilities.zoom.max;
+                        zoomSlider.step = capabilities.zoom.step;
+                        zoomSlider.value = track.getSettings().zoom || capabilities.zoom.min;
+
+                        zoomSlider.oninput = (e) => {
+                            track.applyConstraints({ advanced: [ { zoom: parseFloat(e.target.value) } ] }).catch(()=>{});
+                        };
+                    } else {
+                        zoomControl.style.display = 'none';
+                    }
 
                     const barcodeDetector = new BarcodeDetector({ 
                         formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] 
@@ -562,16 +585,17 @@
             }
         });
 
-        // دالة مكتبة html5-qrcode البديلة (مع المستطيل المخصص)
+        // دالة مكتبة html5-qrcode البديلة
         function useHtml5QrCodeFallback() {
             readerDiv.style.display = 'block';
             nativeContainer.style.display = 'none';
+            zoomControl.style.display = 'none'; // إخفاء الزوم في وضع المكتبة البديلة
             
             html5QrCode = new Html5Qrcode("reader");
             
             const config = { 
                 fps: 15, 
-                qrbox: { width: 260, height: 110 }, // تحديد المستطيل العرضي للأدوية
+                qrbox: { width: 260, height: 110 },
                 formatsToSupport: [ 
                     Html5QrcodeSupportedFormats.EAN_13,
                     Html5QrcodeSupportedFormats.EAN_8, 
@@ -601,6 +625,7 @@
                 currentStream = null;
             }
             videoElement.srcObject = null;
+            zoomControl.style.display = 'none'; // إخفاء الزوم عند الإغلاق
             
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().catch(err => {});
