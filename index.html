@@ -26,13 +26,12 @@
             color: var(--text-dark);
         }
 
-        /* حاوية البرنامج الأساسية ذات الخلفية الصلبة لمنع تسرب الكاميرا */
         #app-root {
             width: 100%;
             min-height: 100vh;
             padding-top: 180px; 
             box-sizing: border-box;
-            background-color: var(--bg-main); /* هذا اللون يمنع العيب الذي ظهر في الصورة */
+            background-color: var(--bg-main); 
         }
         
         .fixed-top-container {
@@ -62,7 +61,7 @@
             cursor: pointer; padding: 0 10px;
         }
 
-        #status-bar { font-size: 0.75rem; text-align: center; padding: 5px; background: #e9ecef; }
+        #status-bar { font-size: 0.75rem; text-align: center; padding: 5px; background: #e9ecef; transition: all 0.3s ease; }
         .search-section-wrapper { padding: 10px 15px; }
         .search-section { display: flex; gap: 8px; align-items: center; }
         
@@ -146,7 +145,7 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
         .settings-content h3 { margin-top: 0; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; color: var(--primary-blue); }
-        .setting-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-weight: bold; }
+        .setting-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-weight: bold; font-size: 0.95rem; }
         .toggle-switch { position: relative; width: 45px; height: 24px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
@@ -162,74 +161,24 @@
             visibility: hidden; min-width: 200px; background-color: var(--primary-green);
             color: #fff; text-align: center; border-radius: 50px; padding: 10px;
             position: fixed; z-index: 10000; left: 50%; bottom: 30px;
-            transform: translateX(-50%); opacity: 0; transition: 0.3s;
+            transform: translateX(-50%); opacity: 0; transition: 0.3s; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         }
         #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
 
-        /* ---------- نظام الكاميرا الشفاف الاحترافي ---------- */
-        
-        body.scanning-active { 
-            background-color: transparent !important; 
-            overflow: hidden; /* إيقاف النزول أثناء الفحص */
-        }
-
-        /* 1. واجهة المسح المنبثقة */
-        #capacitor-scanner-ui {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 9999; background: transparent;
-        }
+        /* إعدادات مسح الكاميرا */
+        body.scanning-active { background-color: transparent !important; overflow: hidden; }
+        #capacitor-scanner-ui { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: transparent; }
         body.scanning-active #capacitor-scanner-ui { display: block; }
-        
-        /* 2. تظليل البرنامج لزيادة التركيز على الكاميرا (يظلل الشاشة بالكامل ما عدا المربع) */
-        .scanner-dimmer {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            border-style: solid;
-            border-color: rgba(0, 0, 0, 0.65); /* نسبة التعتيم للبرنامج */
-            border-top-width: calc(50vh - 80px);
-            border-bottom-width: calc(50vh - 80px);
-            border-left-width: calc(50vw - 140px);
-            border-right-width: calc(50vw - 140px);
-            pointer-events: none;
-        }
-
-        .scanner-title {
-            position: absolute;
-            top: calc(50vh - 130px);
-            left: 0; right: 0; text-align: center;
-            color: white; font-size: 1.2rem; font-weight: bold;
-            text-shadow: 0 2px 6px rgba(0,0,0,0.8);
-        }
-
-        /* 3. إطار الكاميرا الفعلي */
-        .scanner-hole {
-            position: absolute;
-            top: calc(50vh - 80px);
-            left: calc(50vw - 140px);
-            width: 280px; height: 160px;
-            border: 3px solid var(--primary-green);
-            border-radius: 12px;
-            box-sizing: border-box; 
-            overflow: hidden; 
-        }
-        
-        .scanner-laser {
-            width: 100%; height: 2px; background-color: var(--primary-green); box-shadow: 0 0 10px var(--primary-green);
-            position: absolute; top: 0; animation: scan-laser 0.6s infinite alternate linear; 
-        }
+        .scanner-dimmer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: rgba(0, 0, 0, 0.65); border-top-width: calc(50vh - 80px); border-bottom-width: calc(50vh - 80px); border-left-width: calc(50vw - 140px); border-right-width: calc(50vw - 140px); pointer-events: none; }
+        .scanner-title { position: absolute; top: calc(50vh - 130px); left: 0; right: 0; text-align: center; color: white; font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+        .scanner-hole { position: absolute; top: calc(50vh - 80px); left: calc(50vw - 140px); width: 280px; height: 160px; border: 3px solid var(--primary-green); border-radius: 12px; box-sizing: border-box; overflow: hidden; }
+        .scanner-laser { width: 100%; height: 2px; background-color: var(--primary-green); box-shadow: 0 0 10px var(--primary-green); position: absolute; top: 0; animation: scan-laser 0.6s infinite alternate linear; }
         @keyframes scan-laser { 0% { top: 0; } 100% { top: 100%; } }
-        
-        #cap-close-cam {
-            position: absolute;
-            bottom: calc(50vh - 160px);
-            left: 50%; transform: translateX(-50%);
-            background: var(--danger-color); color: white; border: none; padding: 10px 30px;
-            border-radius: 20px; font-family: 'Cairo'; font-weight: bold; font-size: 1.1rem;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4); cursor: pointer;
-        }
+        #cap-close-cam { position: absolute; bottom: calc(50vh - 160px); left: 50%; transform: translateX(-50%); background: var(--danger-color); color: white; border: none; padding: 10px 30px; border-radius: 20px; font-family: 'Cairo'; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.4); cursor: pointer; }
 
         #reader-wrapper { display: none; margin-bottom: 15px; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary-blue); position: relative; background: #000; max-height: 400px; }
         #reader { width: 100%; background: #000; }
-        .close-cam { position: absolute; top: 10px; left: 10px; background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 6px 12px; border-radius: 6px; z-index: 10; font-family: 'Cairo'; font-weight: bold; }
+        .close-cam { position: absolute; top: 10px; left: 10px; background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 6px 12px; border-radius: 6px; z-index: 10; font-family: 'Cairo'; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -251,7 +200,7 @@
                 <button class="action-btn btn-add" id="add-new-btn" onclick="showAddNewCard()" title="إضافة مادة جديدة">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#198754" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
-                <button class="action-btn" onclick="startCamera('main-search')" title="مسح الباركود">
+                <button class="action-btn" onclick="handleBarcodeClick('main-search')" title="مسح الباركود">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 </button>
             </div>
@@ -267,7 +216,11 @@
 
     <div id="settings-modal">
         <div class="settings-content">
-            <h3>إعدادات العرض</h3>
+            <h3>إعدادات العرض والنظام</h3>
+            <div class="setting-item" style="border-bottom: 1px dashed #ccc; padding-bottom: 10px; margin-bottom: 10px;">
+                <span style="color: var(--primary-blue);">كاميرا الهاتف الأصلية (صورة)</span>
+                <label class="toggle-switch"><input type="checkbox" id="set-native-cam"><span class="slider"></span></label>
+            </div>
             <div class="setting-item"><span>عرض سعر الشراء (التكلفة)</span><label class="toggle-switch"><input type="checkbox" id="set-cost"><span class="slider"></span></label></div>
             <div class="setting-item"><span>عرض تاريخ النفاذ</span><label class="toggle-switch"><input type="checkbox" id="set-exp"><span class="slider"></span></label></div>
             <div class="setting-item"><span>عرض التعبئة</span><label class="toggle-switch"><input type="checkbox" id="set-pkg"><span class="slider"></span></label></div>
@@ -278,12 +231,12 @@
         </div>
     </div>
 
+    <input type="file" id="native-camera-input" accept="image/*" capture="environment" style="display: none;">
+
     <div id="capacitor-scanner-ui">
         <div class="scanner-dimmer"></div>
         <div class="scanner-title">ضع الباركود داخل الإطار</div>
-        <div class="scanner-hole">
-            <div class="scanner-laser"></div>
-        </div>
+        <div class="scanner-hole"><div class="scanner-laser"></div></div>
         <button id="cap-close-cam" onclick="stopCapacitorScan()">إلغاء المسح ❌</button>
     </div>
 
@@ -306,7 +259,8 @@
         let currentScanTarget = 'main-search'; 
         let isEditingNew = false; 
 
-        const defaultSettings = { cost: true, exp: true, pkg: true, bal: true, packbal: true, del: false };
+        // إضافة nativeCam للإعدادات الافتراضية
+        const defaultSettings = { cost: true, exp: true, pkg: true, bal: true, packbal: true, del: false, nativeCam: false };
         let appSettings = JSON.parse(localStorage.getItem('msl_app_settings')) || defaultSettings;
 
         function applySettingsToUI() {
@@ -320,6 +274,7 @@
         applySettingsToUI();
 
         function openSettings() {
+            document.getElementById('set-native-cam').checked = appSettings.nativeCam || false;
             document.getElementById('set-cost').checked = appSettings.cost;
             document.getElementById('set-exp').checked = appSettings.exp;
             document.getElementById('set-pkg').checked = appSettings.pkg;
@@ -330,6 +285,7 @@
         }
 
         function closeAndSaveSettings() {
+            appSettings.nativeCam = document.getElementById('set-native-cam').checked;
             appSettings.cost = document.getElementById('set-cost').checked;
             appSettings.exp = document.getElementById('set-exp').checked;
             appSettings.pkg = document.getElementById('set-pkg').checked;
@@ -415,11 +371,17 @@
             loadDefaultInventory();
         }
 
+        // دالة تحديث حالة الاتصال في الشريط
+        function updateStatusUI() {
+            const bar = document.getElementById('status-bar');
+            bar.innerHTML = navigator.onLine ? `متصل بالإنترنت ☁️ (${inventory.length} مادة)` : `وضع عدم الاتصال ⏳ (البيانات محفوظة محلياً)`;
+            bar.style.color = navigator.onLine ? "#198754" : "#dc3545";
+        }
+
         db.collection('pos_data').doc('inventory').onSnapshot((doc) => {
             if (doc.exists) {
                 inventory = JSON.parse(doc.data().jsonData);
-                document.getElementById('status-bar').innerHTML = navigator.onLine ? `متصل بالإنترنت ☁️ (${inventory.length} مادة)` : `وضع عدم الاتصال ⏳ (البيانات محفوظة محلياً)`;
-                document.getElementById('status-bar').style.color = navigator.onLine ? "#198754" : "#dc3545";
+                updateStatusUI();
                 if(searchInput.value.trim() === '' && !isEditingNew) { loadDefaultInventory(); }
             }
         });
@@ -480,7 +442,7 @@
                             <label>الباركود</label>
                             <div class="barcode-input-container">
                                 <input type="text" id="bar-${safeId}" class="inline-input" style="direction: ltr; font-family: monospace; font-size: 0.8rem; flex-grow: 1;" value="${item.barcode || ''}" placeholder="الباركود">
-                                <button class="action-btn" style="width: 38px; height: 38px; padding: 5px;" onclick="startCamera('bar-${safeId}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+                                <button class="action-btn" style="width: 38px; height: 38px; padding: 5px;" onclick="handleBarcodeClick('bar-${safeId}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
                             </div>
                         </div>
                     </div>
@@ -556,17 +518,58 @@
         }
         
         let html5QrCode = null; 
+
+        // -- نظام الكاميرا الشامل الجديد --
+        function handleBarcodeClick(targetId) {
+            currentScanTarget = targetId;
+            // فحص الإعدادات: هل اختار المستخدم الكاميرا الأصلية؟
+            if (appSettings.nativeCam) {
+                document.getElementById('native-camera-input').click();
+            } else {
+                startCamera(targetId);
+            }
+        }
+
+        // معالجة الصورة الملتقطة من الكاميرا الأصلية
+        document.getElementById('native-camera-input').addEventListener('change', function(e) {
+            if (e.target.files.length === 0) return;
+            const file = e.target.files[0];
+            
+            // تحديث شريط الحالة لتنبيه المستخدم
+            const statusBar = document.getElementById('status-bar');
+            statusBar.innerHTML = "⏳ جاري استخراج الباركود من الصورة...";
+            statusBar.style.color = "var(--primary-blue)";
+
+            // استخدام المكتبة لمعالجة الصورة
+            const qrCodeFromFile = new Html5Qrcode("reader");
+            qrCodeFromFile.scanFile(file, true)
+                .then(decodedText => {
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    const targetElement = document.getElementById(currentScanTarget);
+                    if (targetElement) { 
+                        targetElement.value = decodedText; 
+                        targetElement.dispatchEvent(new Event('input')); 
+                    }
+                    const toast = document.getElementById('toast');
+                    toast.textContent = "تم استخراج الباركود بنجاح ✓";
+                    toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500);
+                })
+                .catch(err => {
+                    alert("لم يتم العثور على باركود واضح. يرجى التقاط صورة أقرب للباركود مع إضاءة جيدة.");
+                })
+                .finally(() => {
+                    updateStatusUI(); // إرجاع شريط الحالة لحالته الطبيعية
+                    e.target.value = ''; // تصفير حقل الملف ليتمكن من التقاط صورة جديدة
+                });
+        });
         
         async function startCamera(targetInputId) {
-            currentScanTarget = targetInputId; 
             if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
                 try {
-                    // حساب ذكي لموقع المربع الشفاف بناءً على نزولك في الصفحة
                     const scrollY = window.scrollY || document.documentElement.scrollTop;
                     const holeTop = `calc(${scrollY}px + 50vh - 80px)`;
                     const holeBottom = `calc(${scrollY}px + 50vh + 80px)`;
                     
-                    // قص المربع من خلفية البرنامج الصلبة حصراً
                     document.getElementById('app-root').style.clipPath = `polygon(
                         0% 0%, 100% 0%, 100% 100%, 0% 100%, 
                         0% ${holeTop}, 
@@ -600,20 +603,36 @@
                 Capacitor.Plugins.BarcodeScanner.stopScan();
             }
             document.body.classList.remove('scanning-active');
-            document.getElementById('app-root').style.clipPath = 'none'; // إلغاء القص عند إغلاق الكاميرا
+            document.getElementById('app-root').style.clipPath = 'none'; 
         }
 
         function useHtml5QrCodeFallback() {
             document.getElementById('reader-wrapper').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' });
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 30, qrbox: { width: 260, height: 110 } },
+            
+            // الإعدادات الجديدة لطلب أقصى دقة والتركيز التلقائي
+            const config = { 
+                fps: 10,
+                qrbox: { width: 260, height: 110 },
+                videoConstraints: {
+                    facingMode: "environment",
+                    advanced: [{ focusMode: "continuous" }],
+                    width: { min: 1280, ideal: 1920, max: 3840 },
+                    height: { min: 720, ideal: 1080, max: 2160 }
+                }
+            };
+
+            html5QrCode.start({ facingMode: "environment" }, config,
                 (decodedText) => {
                     if (navigator.vibrate) navigator.vibrate(200);
                     const targetElement = document.getElementById(currentScanTarget);
                     if(targetElement) { targetElement.value = decodedText; targetElement.dispatchEvent(new Event('input')); }
                     closeWebCamera(); 
                 }
-            ).catch(err => { alert("تعذر تشغيل كاميرا الويب."); closeWebCamera(); });
+            ).catch(err => { 
+                alert("تعذر تشغيل كاميرا الويب. تأكد من إعطاء الصلاحيات."); 
+                closeWebCamera(); 
+            });
         }
 
         function closeWebCamera() {
