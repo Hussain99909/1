@@ -14,9 +14,6 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
-
-    <!-- مكتبة Tesseract.js للذكاء الاصطناعي والتعرف على اتجاه النصوص (OSD) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.3/tesseract.min.js"></script>
     
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
@@ -51,7 +48,7 @@
             </div>
             <div>
                 <h1 class="text-lg font-bold">محرر الفيديو الاحترافي</h1>
-                <p class="text-[10px] text-gray-400">قص، تدوير ذكي للنصوص، ودمج مع الصوت</p>
+                <p class="text-[10px] text-gray-400">قص، تدوير، أبعاد، ودمج مع الصوت</p>
             </div>
         </div>
         <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
@@ -144,17 +141,6 @@
                     </label>
                 </div>
 
-                <!-- زر تفعيل التدوير التلقائي (OCR) -->
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 mb-3 cursor-pointer hover:bg-gray-800 transition" onclick="document.getElementById('autoOcrRotate').click()">
-                    <label class="flex items-start gap-3 cursor-pointer pointer-events-none">
-                        <input type="checkbox" id="autoOcrRotate" class="mt-1 w-4 h-4 text-indigo-500 bg-gray-800 border-gray-600 rounded pointer-events-auto">
-                        <div class="flex flex-col">
-                            <span class="text-xs font-bold text-gray-300">التدوير الذكي التلقائي للصور</span>
-                            <span class="text-[10px] text-gray-500 mt-1">يقوم بتحليل النصوص لتعديل اتجاه المستندات المقلوبة تلقائياً عند إضافتها (قد يستغرق وقتاً أطول).</span>
-                        </div>
-                    </label>
-                </div>
-
                 <!-- إعدادات الصوت العامة -->
                 <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 mb-3">
                     <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> إعدادات الصوت</h4>
@@ -233,10 +219,7 @@
                     <label class="block text-xs font-bold text-gray-400 mb-2">التدوير:</label>
                     <div class="flex gap-2">
                         <button id="clipRotateBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs">
-                            <i class="fa-solid fa-rotate-right"></i> يدوياً (90°)
-                        </button>
-                        <button id="clipAutoRotateBtn" class="flex-1 bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs" title="تحليل النص لتصحيح الاتجاه تلقائياً">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> تدوير ذكي
+                            <i class="fa-solid fa-rotate-right"></i> تدوير (90°)
                         </button>
                     </div>
                 </div>
@@ -247,7 +230,6 @@
             </div>
             <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
                 <button id="saveModalBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition">تم التعديل</button>
-                <button id="deleteClipBtn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold transition" title="حذف المقطع"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
     </div>
@@ -277,7 +259,6 @@
         const mediaInput = document.getElementById('mediaInput');
         const audioInput = document.getElementById('audioInput');
         const resolutionSelect = document.getElementById('resolutionSelect');
-        const autoOcrRotateCheckbox = document.getElementById('autoOcrRotate');
         
         const timelineContainer = document.getElementById('timelineContainer');
         const emptyTimelineMsg = document.getElementById('emptyTimelineMsg');
@@ -306,12 +287,10 @@
         const modal = document.getElementById('clipSettingsModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const saveModalBtn = document.getElementById('saveModalBtn');
-        const deleteClipBtn = document.getElementById('deleteClipBtn');
         const clipFitRadios = document.getElementsByName('clipFitMode');
         const clipZoomInput = document.getElementById('clipZoomInput');
         const zoomValueDisplay = document.getElementById('zoomValueDisplay');
         const clipRotateBtn = document.getElementById('clipRotateBtn');
-        const clipAutoRotateBtn = document.getElementById('clipAutoRotateBtn');
         const clipDurationInput = document.getElementById('clipDurationInput');
         const durationControlGroup = document.getElementById('durationControlGroup');
 
@@ -320,42 +299,6 @@
             const m = Math.floor(seconds / 60).toString().padStart(2, '0');
             const s = Math.floor(seconds % 60).toString().padStart(2, '0');
             return `${m}:${s}`;
-        }
-
-        // --- دالة اكتشاف اتجاه النص وإصلاحه ---
-        async function getSmartRotation(imageElement) {
-            let worker = null;
-            try {
-                // 1. تحويل الصورة إلى Canvas لتجنب مشاكل الوصول والأمان (CORS / Blob) داخل الـ Web Worker
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = imageElement.videoWidth || imageElement.width || 800;
-                tempCanvas.height = imageElement.videoHeight || imageElement.height || 800;
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
-
-                // 2. استخدام الدالة الصحيحة لاكتشاف اتجاه المستندات (OSD)
-                worker = await Tesseract.createWorker('osd');
-                const result = await worker.detect(tempCanvas);
-                
-                await worker.terminate();
-                worker = null;
-                
-                let deg = 0;
-                if (result && result.data && typeof result.data.orientation_degrees === 'number') {
-                    deg = result.data.orientation_degrees;
-                    console.log("تم اكتشاف زاوية الدوران بواسطة الذكاء الاصطناعي:", deg);
-                }
-                
-                if (deg !== 0) {
-                    // إذا كان النص مائلاً بمقدار 90 درجة، يجب تدوير الشاشة بمقدار 270 (360 - 90) لتعديله
-                    return (360 - deg) % 360;
-                }
-                return 0;
-            } catch (e) {
-                console.error("فشل الذكاء الاصطناعي في تحديد الاتجاه:", e);
-                if (worker) await worker.terminate();
-                return 0;
-            }
         }
 
         // تغيير الدقة
@@ -424,17 +367,15 @@
         mediaInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-            
-            const isAutoOcr = autoOcrRotateCheckbox.checked;
 
             // إظهار التحميل
             emptyStateMsg.style.display = 'flex';
             emptyIcon.className = "fa-solid fa-spinner fa-spin text-6xl text-indigo-500 mb-4";
-            emptyText.innerText = isAutoOcr ? "جاري المعالجة وتحليل النصوص للتدوير..." : "جاري المعالجة...";
+            emptyText.innerText = "جاري المعالجة...";
 
             for (let file of files) {
                 const id = Date.now() + Math.random().toString();
-                const defaultSettings = { scale: 1, fitMode: 'stretch' }; // تمطيط للجميع
+                const defaultSettings = { scale: 1, fitMode: 'stretch', rotation: 0 }; 
                 
                 try {
                     if (file.type === 'application/pdf') {
@@ -452,31 +393,19 @@
                             const img = new Image(); img.src = dataUrl;
                             await new Promise(r => img.onload = r);
                             
-                            let rot = 0;
-                            if (isAutoOcr) {
-                                emptyText.innerText = `تحليل صفحة ${i}...`;
-                                rot = await getSmartRotation(img);
-                            }
-                            
-                            timeline.push({ id: id+i, type: 'image', name: `صفحة ${i} - ${file.name.substring(0,6)}`, element: img, duration: 4, url: dataUrl, rotation: rot, ...defaultSettings });
+                            timeline.push({ id: id+i, type: 'image', name: `صفحة ${i} - ${file.name.substring(0,6)}`, element: img, duration: 4, url: dataUrl, ...defaultSettings });
                         }
                     } else if (file.type.startsWith('image/')) {
                         const url = URL.createObjectURL(file);
                         const img = new Image(); img.src = url;
                         await new Promise(r => img.onload = r);
                         
-                        let rot = 0;
-                        if (isAutoOcr) {
-                            emptyText.innerText = `تحليل اتجاه الصورة...`;
-                            rot = await getSmartRotation(img);
-                        }
-                        
-                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, rotation: rot, ...defaultSettings });
+                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
                     } else if (file.type.startsWith('video/')) {
                         const url = URL.createObjectURL(file);
                         const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
                         await new Promise(r => vid.onloadedmetadata = r);
-                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, rotation: 0, ...defaultSettings });
+                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
                     }
                 } catch (err) { console.error("Error processing file", err); alert(`حدث خطأ أثناء قراءة الملف: ${file.name}`); }
             }
@@ -523,8 +452,6 @@
             timeline.forEach((item, index) => {
                 const el = document.createElement('div');
                 el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-2 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
-                
-                // النقر على جسم المقطع يفتح نافذة الإعدادات الكاملة
                 el.onclick = () => openClipSettings(index);
                 
                 const iconHTML = item.type === 'video' ? '<i class="fa-solid fa-video text-blue-400"></i>' : '<i class="fa-solid fa-image text-emerald-400"></i>';
@@ -532,7 +459,6 @@
                 thumb.className = "w-16 h-12 bg-black rounded shrink-0 flex items-center justify-center overflow-hidden relative";
                 if(item.type === 'image') {
                     const imgThumb = document.createElement('img'); imgThumb.src = item.url;
-                    // إظهار التدوير في الصورة المصغرة للتوضيح
                     imgThumb.style.transform = `rotate(${item.rotation || 0}deg)`;
                     imgThumb.className = "w-full h-full object-cover opacity-80 transition-transform"; 
                     thumb.appendChild(imgThumb);
@@ -540,16 +466,15 @@
 
                 const details = document.createElement('div');
                 details.className = "flex-grow min-w-0 pointer-events-none";
-                
-                // إظهار حالة وضع العرض كنص صغير
                 let modeText = item.fitMode === 'cover' ? 'قص' : (item.fitMode === 'contain' ? 'احتواء' : 'تمطيط');
                 details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)} • ${modeText}</p>`;
                 
                 const iconDiv = document.createElement('div'); iconDiv.className = "w-5 flex items-center justify-center pointer-events-none"; iconDiv.innerHTML = iconHTML;
 
-                // --- الأزرار السريعة الجديدة ---
+                // --- الأزرار السريعة ظاهرة دائماً ---
                 const actionsDiv = document.createElement('div');
-                actionsDiv.className = "flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition z-10 shrink-0";
+                // تم إزالة خصائص الإخفاء (opacity-0) لتبقى الأزرار ظاهرة دائماً
+                actionsDiv.className = "flex items-center gap-1 opacity-100 transition z-10 shrink-0";
 
                 // زر التبديل بين أوضاع العرض (Fit Toggle)
                 const fitBtn = document.createElement('button');
@@ -559,7 +484,6 @@
                 fitBtn.innerHTML = `<i class="fa-solid ${fitIconClass}"></i>`;
                 fitBtn.onclick = (e) => {
                     e.stopPropagation();
-                    // التبديل بين الحالات الثلاث
                     if (item.fitMode === 'cover') item.fitMode = 'contain';
                     else if (item.fitMode === 'contain') item.fitMode = 'stretch';
                     else item.fitMode = 'cover';
@@ -590,7 +514,6 @@
                     if(!timeline[index].name.includes("صفحة")) URL.revokeObjectURL(timeline[index].url); 
                     timeline.splice(index, 1);
                     
-                    // تحديث مؤشر التعديل لكي لا يتعطل الرسم إذا تم حذف العنصر المعروض حالياً
                     if (editingIndex === index) {
                         editingIndex = timeline.length > 0 ? Math.max(0, index - 1) : -1;
                         redrawCurrentOrFirst();
@@ -633,38 +556,6 @@
         clipRotateBtn.addEventListener('click', () => { if(editingIndex >= 0) { timeline[editingIndex].rotation = ((timeline[editingIndex].rotation || 0) + 90) % 360; redrawCurrentOrFirst(); } });
         clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
         
-        // رز التدوير الذكي (اليدوي) داخل النافذة
-        clipAutoRotateBtn.addEventListener('click', async () => {
-            if(editingIndex >= 0) {
-                const item = timeline[editingIndex];
-                if (item.type !== 'image') { alert('التدوير الذكي للنصوص مدعوم للصور والـ PDF فقط.'); return; }
-                
-                const btnIcon = clipAutoRotateBtn.querySelector('i');
-                btnIcon.className = "fa-solid fa-spinner fa-spin";
-                
-                const rot = await getSmartRotation(item.element);
-                if (rot !== 0) {
-                    // إضافة التدوير المقترح للتدوير الحالي لضبط الاتجاه
-                    item.rotation = rot;
-                    redrawCurrentOrFirst();
-                } else {
-                    alert("إما أن اتجاه الصورة صحيح بالفعل، أو لم يجد الذكاء الاصطناعي نصاً كافياً لتحليل الاتجاه.");
-                }
-                
-                btnIcon.className = "fa-solid fa-wand-magic-sparkles";
-            }
-        });
-
-        deleteClipBtn.addEventListener('click', () => {
-            if(editingIndex >= 0) {
-                if(!timeline[editingIndex].name.includes("صفحة")) URL.revokeObjectURL(timeline[editingIndex].url); 
-                timeline.splice(editingIndex, 1);
-                editingIndex = timeline.length > 0 ? timeline.length -1 : -1; 
-                closeSettingsModal();
-                redrawCurrentOrFirst();
-                if(timeline.length === 0) emptyStateMsg.style.display = 'flex';
-            }
-        });
         closeModalBtn.addEventListener('click', closeSettingsModal); saveModalBtn.addEventListener('click', closeSettingsModal);
 
         // التشغيل والتصدير
@@ -850,3 +741,4 @@
     </script>
 </body>
 </html>
+```eof
