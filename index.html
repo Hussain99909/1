@@ -3,648 +3,850 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSL Mobile - التعديل الشامل</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>محرر الفيديو الاحترافي</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- مكتبة PDF.js لمعالجة ملفات الـ PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 
+    <!-- مكتبة Tesseract.js للذكاء الاصطناعي والتعرف على اتجاه النصوص (OSD) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.3/tesseract.min.js"></script>
+    
     <style>
-        :root {
-            --primary-blue: #0d6efd;
-            --primary-green: #198754;
-            --bg-main: #f0f4f8;
-            --text-dark: #2c3e50;
-            --border-color: #dee2e6;
-            --danger-color: #dc3545;
-        }
-        body {
-            font-family: 'Cairo', sans-serif;
-            margin: 0; padding: 0;
-            background-color: var(--bg-main);
-            color: var(--text-dark);
-        }
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        #app-root {
-            width: 100%;
-            min-height: 100vh;
-            padding-top: 180px; 
-            box-sizing: border-box;
-            background-color: var(--bg-main); 
-        }
+        .overlay-blur { backdrop-filter: blur(5px); }
         
-        .fixed-top-container {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            background-color: var(--bg-main);
-            z-index: 100;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
+        .clip-item { transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
+        .clip-item:hover { border-color: #4b5563; }
+        .clip-item.active { border-color: #6366f1; background-color: #374151; }
         
-        .header {
-            background-color: var(--primary-blue);
+        .custom-radio:checked + label {
+            background-color: #4f46e5;
             color: white;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between; 
-            align-items: center;
-        }
-        .header-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            flex-grow: 1;
-            text-align: center;
-        }
-        .settings-icon {
-            background: none; border: none; color: white; font-size: 1.5rem;
-            cursor: pointer; padding: 0 10px;
+            border-color: #4f46e5;
         }
 
-        #status-bar { font-size: 0.75rem; text-align: center; padding: 5px; background: #e9ecef; transition: all 0.3s ease; }
-        .search-section-wrapper { padding: 10px 15px; }
-        .search-section { display: flex; gap: 8px; align-items: center; }
-        
-        .search-wrapper { position: relative; flex-grow: 1; }
-        .search-input {
-            width: 100%; padding: 12px 15px; padding-left: 40px; 
-            border: 2px solid var(--border-color);
-            border-radius: 10px; font-family: 'Cairo', sans-serif; font-size: 1rem;
-            box-sizing: border-box; outline: none;
-        }
-        .search-input:focus { border-color: var(--primary-blue); }
-        .clear-search-btn {
-            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-            background: #e9ecef; color: #6c757d; border: none; border-radius: 50%;
-            width: 25px; height: 25px; display: none; align-items: center; justify-content: center;
-            font-size: 0.8rem; cursor: pointer; font-weight: bold;
-        }
-        
-        .action-btn {
-            background-color: white; border: 2px solid var(--primary-blue);
-            border-radius: 10px; width: 45px; height: 45px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; flex-shrink: 0;
-        }
-        .btn-add { border-color: var(--primary-green); }
-
-        .container { padding: 15px; }
-
-        #search-results { display: flex; flex-direction: column; gap: 15px; padding-bottom: 80px; }
-        .result-card {
-            background: white; border-radius: 12px; padding: 15px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.06); border: 1px solid var(--border-color);
-        }
-        
-        .save-btn-top, .cancel-btn-top, .delete-btn-top {
-            color: white; border: none; border-radius: 6px; padding: 5px 12px; display: inline-flex; 
-            align-items: center; justify-content: center; gap: 5px; cursor: pointer; 
-            font-family: 'Cairo'; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-right: 5px;
-        }
-        .save-btn-top { background-color: var(--primary-green); }
-        .cancel-btn-top { background-color: #6c757d; }
-        .delete-btn-top { background-color: var(--danger-color); }
-        .card-header-action { display: flex; justify-content: flex-end; margin-bottom: 10px; }
-
-        .card-row-name { margin-bottom: 10px; }
-        .name-textarea {
-            height: auto; min-height: 45px; padding: 8px; resize: none; line-height: 1.4;
-            text-align: right; width: 100%; border: 1px solid #ced4da; border-radius: 6px;
-            font-family: 'Cairo'; font-weight: bold; font-size: 0.9rem;
-            box-sizing: border-box; background-color: #fdfdfd;
-        }
-        .name-textarea:focus { border-color: var(--primary-blue); outline: none; background-color: #eef5ff; }
-
-        .flex-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .input-group-inline { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-        .input-group-inline label { font-size: 0.7rem; color: #6c757d; margin-bottom: 3px; font-weight: 700; }
-        
-        .inline-input {
-            width: 100%; height: 40px; padding: 0 6px; border: 1px solid #ced4da; border-radius: 6px;
-            font-family: 'Cairo'; font-weight: bold; font-size: 0.85rem;
-            text-align: center; box-sizing: border-box; background-color: #fdfdfd;
-        }
-        .inline-input:focus { border-color: var(--primary-blue); outline: none; background-color: #eef5ff; }
-        .readonly-input { background-color: #e9ecef; color: #495057; cursor: not-allowed; border: 1px dashed #ced4da; }
-        .date-input { direction: ltr; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px; }
-        .barcode-input-container { display: flex; gap: 4px; align-items: center; }
-
-        body.hide-cost .group-cost { display: none !important; }
-        body.hide-exp .group-exp { display: none !important; }
-        body.hide-pkg .group-pkg { display: none !important; }
-        body.hide-bal .group-bal { display: none !important; }
-        body.hide-packbal .group-packbal { display: none !important; }
-        body.hide-del .btn-delete { display: none !important; }
-
-        #settings-modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;
-        }
-        .settings-content {
-            background: white; padding: 20px; border-radius: 12px; width: 85%; max-width: 350px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-        .settings-content h3 { margin-top: 0; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; color: var(--primary-blue); }
-        .setting-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-weight: bold; font-size: 0.95rem; }
-        .toggle-switch { position: relative; width: 45px; height: 24px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--primary-green); }
-        input:checked + .slider:before { transform: translateX(21px); }
-        .settings-close-btn {
-            width: 100%; padding: 10px; background: var(--primary-blue); color: white;
-            border: none; border-radius: 8px; font-family: 'Cairo'; font-weight: bold; margin-top: 15px; cursor: pointer;
-        }
-
-        #toast {
-            visibility: hidden; min-width: 200px; background-color: var(--primary-green);
-            color: #fff; text-align: center; border-radius: 50px; padding: 10px;
-            position: fixed; z-index: 10000; left: 50%; bottom: 30px;
-            transform: translateX(-50%); opacity: 0; transition: 0.3s; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-        #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
-
-        /* إعدادات مسح الكاميرا */
-        body.scanning-active { background-color: transparent !important; overflow: hidden; }
-        #capacitor-scanner-ui { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: transparent; }
-        body.scanning-active #capacitor-scanner-ui { display: block; }
-        .scanner-dimmer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-style: solid; border-color: rgba(0, 0, 0, 0.65); border-top-width: calc(50vh - 80px); border-bottom-width: calc(50vh - 80px); border-left-width: calc(50vw - 140px); border-right-width: calc(50vw - 140px); pointer-events: none; }
-        .scanner-title { position: absolute; top: calc(50vh - 130px); left: 0; right: 0; text-align: center; color: white; font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
-        .scanner-hole { position: absolute; top: calc(50vh - 80px); left: calc(50vw - 140px); width: 280px; height: 160px; border: 3px solid var(--primary-green); border-radius: 12px; box-sizing: border-box; overflow: hidden; }
-        .scanner-laser { width: 100%; height: 2px; background-color: var(--primary-green); box-shadow: 0 0 10px var(--primary-green); position: absolute; top: 0; animation: scan-laser 0.6s infinite alternate linear; }
-        @keyframes scan-laser { 0% { top: 0; } 100% { top: 100%; } }
-        #cap-close-cam { position: absolute; bottom: calc(50vh - 160px); left: 50%; transform: translateX(-50%); background: var(--danger-color); color: white; border: none; padding: 10px 30px; border-radius: 20px; font-family: 'Cairo'; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.4); cursor: pointer; }
-
-        #reader-wrapper { display: none; margin-bottom: 15px; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary-blue); position: relative; background: #000; max-height: 400px; }
-        #reader { width: 100%; background: #000; }
-        .close-cam { position: absolute; top: 10px; left: 10px; background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 6px 12px; border-radius: 6px; z-index: 10; font-family: 'Cairo'; font-weight: bold; cursor: pointer; }
+        input[type=range] { accent-color: #4f46e5; }
     </style>
 </head>
-<body>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col h-screen overflow-hidden relative">
 
-    <div class="fixed-top-container">
-        <div class="header">
-            <div style="width: 30px;"></div> <div class="header-title">نظام MSL - د. حسين</div>
-            <button class="settings-icon" onclick="openSettings()" title="الإعدادات">⚙️</button>
+    <!-- شريط العنوان -->
+    <header class="bg-gray-800 border-b border-gray-700 p-3 flex justify-between items-center z-10 shrink-0 shadow-md">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl shadow-lg">
+                <i class="fa-solid fa-film"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold">محرر الفيديو الاحترافي</h1>
+                <p class="text-[10px] text-gray-400">قص، تدوير ذكي للنصوص، ودمج مع الصوت</p>
+            </div>
         </div>
+        <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
+            <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">حفظ الفيديو</span>
+        </button>
+    </header>
+
+    <main class="flex-grow flex flex-col lg:flex-row overflow-hidden">
         
-        <div id="status-bar">جاري التحميل...</div>
-
-        <div class="search-section-wrapper">
-            <div class="search-section">
-                <div class="search-wrapper">
-                    <input type="text" id="main-search" class="search-input" placeholder="ابحث بالاسم أو الباركود...">
-                    <button id="clear-search-btn" class="clear-search-btn" onclick="clearSearch()">X</button>
+        <!-- مساحة العرض (Canvas) -->
+        <section class="w-full h-[40vh] min-h-[250px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
+            
+            <!-- شاشة التصدير مع نسبة مئوية والمشاركة -->
+            <div id="exportOverlay" class="absolute inset-0 bg-black/95 z-50 hidden flex-col items-center justify-center text-center p-6 overlay-blur">
+                
+                <!-- واجهة التحميل -->
+                <div id="processingUI" class="flex flex-col items-center w-full max-w-xs">
+                    <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
+                    <h2 class="text-2xl font-bold text-white mb-4">جاري صناعة الفيديو...</h2>
+                    
+                    <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
+                        <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                    </div>
+                    <p id="exportProgressText" class="text-2xl font-bold text-indigo-300 mb-4 drop-shadow-md">0%</p>
+                    
+                    <p class="text-gray-400 text-sm">يرجى البقاء في هذه الصفحة وعدم إغلاق الشاشة.</p>
                 </div>
-                <button class="action-btn btn-add" id="add-new-btn" onclick="showAddNewCard()" title="إضافة مادة جديدة">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#198754" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+
+                <!-- واجهة الانتهاء -->
+                <div id="doneUI" class="hidden flex-col items-center w-full max-w-xs">
+                    <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
+                    <h2 class="text-2xl font-bold text-white mb-6">اكتمل صنع الفيديو!</h2>
+                    
+                    <div class="flex flex-col gap-3 w-full">
+                        <button id="finalDownloadBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg">
+                            <i class="fa-solid fa-download"></i> حفظ في الهاتف
+                        </button>
+                        <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg hidden">
+                            <i class="fa-brands fa-whatsapp text-xl"></i> مشاركة وإرسال
+                        </button>
+                    </div>
+                    <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white underline text-sm transition">إغلاق</button>
+                </div>
+
+            </div>
+
+            <!-- HD Canvas -->
+            <div class="relative w-full max-w-4xl aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center">
+                <canvas id="previewCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
+                
+                <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-gray-800 p-4 text-center">
+                    <i id="emptyIcon" class="fa-regular fa-images text-6xl text-gray-600 mb-4"></i>
+                    <p id="emptyText" class="text-gray-400">الشاشة فارغة، أضف صوراً أو مقاطع من القائمة</p>
+                </div>
+            </div>
+
+            <!-- أزرار التشغيل -->
+            <div class="mt-4 flex items-center gap-4 bg-gray-800 p-2 rounded-full border border-gray-700 shadow-lg px-4">
+                <button id="playBtn" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 rounded-full flex items-center justify-center text-lg transition">
+                    <i class="fa-solid fa-play ml-1"></i>
                 </button>
-                <button class="action-btn" onclick="handleBarcodeClick('main-search')" title="مسح الباركود">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <button id="stopBtn" class="w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-lg transition hidden">
+                    <i class="fa-solid fa-stop"></i>
                 </button>
+                <div class="h-6 w-px bg-gray-600 mx-1"></div>
+                <div class="text-sm font-mono text-gray-300 w-16 text-center" id="timeDisplay">00:00</div>
+            </div>
+        </section>
+
+        <!-- الشريط الجانبي (إضافة وسائط والشريط الزمني) -->
+        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-y-auto">
+            
+            <div class="p-4 border-b border-gray-700 bg-gray-800 shrink-0 z-20 shadow-md">
+                
+                <!-- أزرار الرفع -->
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500">
+                        <i class="fa-solid fa-file-pdf text-indigo-400 text-xl"></i>
+                        <span class="text-[10px] font-bold text-center">صور / فيديو / PDF</span>
+                        <input type="file" id="mediaInput" accept="image/*,video/*,.pdf" multiple class="hidden">
+                    </label>
+                    
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
+                        <i class="fa-solid fa-music text-pink-400 text-xl"></i>
+                        <span class="text-xs font-bold text-center w-full truncate px-2">موسيقى خارجية</span>
+                        <input type="file" id="audioInput" accept="audio/*" class="hidden">
+                        <button id="removeAudioBtn" class="absolute -top-2 -right-2 bg-red-500 w-6 h-6 rounded-full hidden items-center justify-center text-xs shadow-lg hover:bg-red-600">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </label>
+                </div>
+
+                <!-- زر تفعيل التدوير التلقائي (OCR) -->
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 mb-3 cursor-pointer hover:bg-gray-800 transition" onclick="document.getElementById('autoOcrRotate').click()">
+                    <label class="flex items-start gap-3 cursor-pointer pointer-events-none">
+                        <input type="checkbox" id="autoOcrRotate" class="mt-1 w-4 h-4 text-indigo-500 bg-gray-800 border-gray-600 rounded pointer-events-auto">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold text-gray-300">التدوير الذكي التلقائي للصور</span>
+                            <span class="text-[10px] text-gray-500 mt-1">يقوم بتحليل النصوص لتعديل اتجاه المستندات المقلوبة تلقائياً عند إضافتها (قد يستغرق وقتاً أطول).</span>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- إعدادات الصوت العامة -->
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 mb-3">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> إعدادات الصوت</h4>
+                    <div class="flex items-center w-full text-xs">
+                        <input type="radio" name="audioMode" id="modeMusicOnly" value="musicOnly" class="hidden custom-radio" checked>
+                        <label for="modeMusicOnly" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            الموسيقى فقط
+                        </label>
+                        <input type="radio" name="audioMode" id="modeMix" value="mix" class="hidden custom-radio">
+                        <label for="modeMix" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            دمج الكل
+                        </label>
+                    </div>
+                </div>
+
+                <!-- إعدادات دقة تصدير الفيديو -->
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-display ml-1"></i> الدقة (Resolution)</h4>
+                    <select id="resolutionSelect" class="w-full bg-gray-800 text-white border border-gray-600 rounded-lg p-2 text-xs focus:ring-indigo-500 outline-none">
+                        <option value="480">SD (854x480) - حجم صغير للمشاركة</option>
+                        <option value="720" selected>HD (1280x720) - متوازن</option>
+                        <option value="1080">FHD (1920x1080) - جودة عالية</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <!-- الشريط الزمني (Timeline) -->
+            <div class="flex-grow p-4 flex flex-col gap-2" id="timelineContainer">
+                <div class="text-center text-gray-500 text-sm mt-8" id="emptyTimelineMsg">
+                    <i class="fa-solid fa-arrow-up block text-2xl mb-2 opacity-50"></i>
+                    أضف ملفات وابدأ المونتاج
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- نافذة تعديل المقطع (Modal) -->
+    <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center overlay-blur p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-sliders ml-2 text-indigo-400"></i> إعدادات المقطع</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 flex flex-col gap-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">القص والابعاد:</label>
+                    <div class="flex items-center w-full text-xs">
+                        <input type="radio" name="clipFitMode" id="clipCover" value="cover" class="hidden custom-radio">
+                        <label for="clipCover" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            قص الزوائد
+                        </label>
+                        <input type="radio" name="clipFitMode" id="clipContain" value="contain" class="hidden custom-radio">
+                        <label for="clipContain" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800">
+                            احتواء
+                        </label>
+                        <input type="radio" name="clipFitMode" id="clipStretch" value="stretch" class="hidden custom-radio">
+                        <label for="clipStretch" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            تمطيط
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-gray-400 mb-2">
+                        <label>تكبير / تصغير (Zoom):</label>
+                        <span id="zoomValueDisplay">100%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-magnifying-glass-minus text-gray-500"></i>
+                        <input type="range" id="clipZoomInput" min="0.5" max="3" step="0.1" value="1" class="flex-grow h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        <i class="fa-solid fa-magnifying-glass-plus text-gray-500"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">التدوير:</label>
+                    <div class="flex gap-2">
+                        <button id="clipRotateBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs">
+                            <i class="fa-solid fa-rotate-right"></i> يدوياً (90°)
+                        </button>
+                        <button id="clipAutoRotateBtn" class="flex-1 bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs" title="تحليل النص لتصحيح الاتجاه تلقائياً">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> تدوير ذكي
+                        </button>
+                    </div>
+                </div>
+                <div id="durationControlGroup">
+                    <label class="block text-xs font-bold text-gray-400 mb-2">المدة (ثواني):</label>
+                    <input type="number" id="clipDurationInput" min="1" max="60" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2 text-center">
+                </div>
+            </div>
+            <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
+                <button id="saveModalBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition">تم التعديل</button>
+                <button id="deleteClipBtn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold transition" title="حذف المقطع"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
     </div>
-
-    <div id="app-root">
-        <div class="container">
-            <div id="reader-wrapper"><button class="close-cam" onclick="closeWebCamera()">إغلاق X</button><div id="reader"></div></div>
-            <div id="search-results"></div>
-        </div>
-    </div>
-
-    <div id="settings-modal">
-        <div class="settings-content">
-            <h3>إعدادات العرض والنظام</h3>
-            <div class="setting-item" style="border-bottom: 1px dashed #ccc; padding-bottom: 10px; margin-bottom: 10px;">
-                <span style="color: var(--primary-blue);">كاميرا الهاتف الأصلية (صورة)</span>
-                <label class="toggle-switch"><input type="checkbox" id="set-native-cam"><span class="slider"></span></label>
-            </div>
-            <div class="setting-item"><span>عرض سعر الشراء (التكلفة)</span><label class="toggle-switch"><input type="checkbox" id="set-cost"><span class="slider"></span></label></div>
-            <div class="setting-item"><span>عرض تاريخ النفاذ</span><label class="toggle-switch"><input type="checkbox" id="set-exp"><span class="slider"></span></label></div>
-            <div class="setting-item"><span>عرض التعبئة</span><label class="toggle-switch"><input type="checkbox" id="set-pkg"><span class="slider"></span></label></div>
-            <div class="setting-item"><span>عرض العدد (المفرد)</span><label class="toggle-switch"><input type="checkbox" id="set-bal"><span class="slider"></span></label></div>
-            <div class="setting-item"><span>عرض الشكل (الباكيت)</span><label class="toggle-switch"><input type="checkbox" id="set-packbal"><span class="slider"></span></label></div>
-            <div class="setting-item"><span>زر حذف المادة</span><label class="toggle-switch"><input type="checkbox" id="set-del"><span class="slider"></span></label></div>
-            <button class="settings-close-btn" onclick="closeAndSaveSettings()">حفظ وإغلاق</button>
-        </div>
-    </div>
-
-    <input type="file" id="native-camera-input" accept="image/*" capture="environment" style="display: none;">
-
-    <div id="capacitor-scanner-ui">
-        <div class="scanner-dimmer"></div>
-        <div class="scanner-title">ضع الباركود داخل الإطار</div>
-        <div class="scanner-hole"><div class="scanner-laser"></div></div>
-        <button id="cap-close-cam" onclick="stopCapacitorScan()">إلغاء المسح ❌</button>
-    </div>
-
-    <div id="toast">تم الحفظ بنجاح ✓</div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBz3BsqbCFZWdkWJUrcSs2fUedToE9ONnY",
-            authDomain: "msl-version-1.firebaseapp.com",
-            databaseURL: "https://msl-version-1-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "msl-version-1",
-            storageBucket: "msl-version-1.firebasestorage.app"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        db.enablePersistence().catch(() => {});
-
-        let inventory = [];
-        let displayLimit = 20; 
-        let currentScanTarget = 'main-search'; 
-        let isEditingNew = false; 
-
-        // إضافة nativeCam للإعدادات الافتراضية
-        const defaultSettings = { cost: true, exp: true, pkg: true, bal: true, packbal: true, del: false, nativeCam: false };
-        let appSettings = JSON.parse(localStorage.getItem('msl_app_settings')) || defaultSettings;
-
-        function applySettingsToUI() {
-            document.body.classList.toggle('hide-cost', !appSettings.cost);
-            document.body.classList.toggle('hide-exp', !appSettings.exp);
-            document.body.classList.toggle('hide-pkg', !appSettings.pkg);
-            document.body.classList.toggle('hide-bal', !appSettings.bal);
-            document.body.classList.toggle('hide-packbal', !appSettings.packbal);
-            document.body.classList.toggle('hide-del', !appSettings.del);
-        }
-        applySettingsToUI();
-
-        function openSettings() {
-            document.getElementById('set-native-cam').checked = appSettings.nativeCam || false;
-            document.getElementById('set-cost').checked = appSettings.cost;
-            document.getElementById('set-exp').checked = appSettings.exp;
-            document.getElementById('set-pkg').checked = appSettings.pkg;
-            document.getElementById('set-bal').checked = appSettings.bal;
-            document.getElementById('set-packbal').checked = appSettings.packbal;
-            document.getElementById('set-del').checked = appSettings.del;
-            document.getElementById('settings-modal').style.display = 'flex';
-        }
-
-        function closeAndSaveSettings() {
-            appSettings.nativeCam = document.getElementById('set-native-cam').checked;
-            appSettings.cost = document.getElementById('set-cost').checked;
-            appSettings.exp = document.getElementById('set-exp').checked;
-            appSettings.pkg = document.getElementById('set-pkg').checked;
-            appSettings.bal = document.getElementById('set-bal').checked;
-            appSettings.packbal = document.getElementById('set-packbal').checked;
-            appSettings.del = document.getElementById('set-del').checked;
-            localStorage.setItem('msl_app_settings', JSON.stringify(appSettings));
-            applySettingsToUI();
-            document.getElementById('settings-modal').style.display = 'none';
-        }
-
-        document.addEventListener('focusin', (e) => {
-            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && typeof e.target.select === 'function') {
-                setTimeout(() => { e.target.select(); }, 10);
-            }
-        });
-
-        window.formatDateDirect = function(el) {
-            let val = el.value.replace(/[^0-9]/g, '');
-            if (val.length > 4) val = val.slice(0, 4) + '-' + val.slice(4);
-            if (val.length > 7) val = val.slice(0, 7) + '-' + val.slice(7, 9);
-            el.value = val;
-        };
-
-        window.onNumberInput = function(el) {
-            let val = el.value.replace(/[^0-9.]/g, '');
-            if(val) {
-                let parts = val.split('.');
-                parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
-                el.value = parts.join('.');
-            }
-        };
-
-        function formatNum(val) {
-            if (!val && val !== 0) return '0';
-            let parts = val.toString().replace(/,/g, '').split('.');
-            parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
-            return parts.join('.');
-        }
-
-        window.calculatePackBalance = function(safeId) {
-            const singles = parseInt(document.getElementById(`bal-${safeId}`).value.replace(/,/g, '')) || 0;
-            const packaging = parseInt(document.getElementById(`pkg-${safeId}`).value.replace(/,/g, '')) || 1;
-            const form = document.getElementById(`form-${safeId}`).value || 'قطعة';
-            const packBalEl = document.getElementById(`packbal-${safeId}`);
-            
-            if (packaging === 1) { packBalEl.value = `${singles} ${form}`; } 
-            else {
-                const packs = Math.floor(singles / packaging);
-                const remaining = singles % packaging;
-                packBalEl.value = `${packs} باكيت و ${remaining} شريط`;
-            }
-        };
-
-        const searchInput = document.getElementById('main-search');
-        const clearBtn = document.getElementById('clear-search-btn');
-        const resultsDiv = document.getElementById('search-results');
-
-        searchInput.addEventListener('input', () => {
-            clearBtn.style.display = searchInput.value.length > 0 ? 'flex' : 'none';
-            isEditingNew = false; 
-            const query = searchInput.value.trim().toLowerCase();
-            if (query.length === 0) { displayLimit = 20; loadDefaultInventory(); return; }
-            
-            const matches = inventory.filter(i => (i.name && i.name.toLowerCase().includes(query)) || (i.barcode && i.barcode.toLowerCase().includes(query))).slice(0, 30);
-            
-            if (matches.length > 0) { renderCards(matches); } 
-            else if (query.length >= 5 && /^[a-zA-Z0-9]+$/.test(query)) {
-                isEditingNew = true;
-                renderCards([{ name: '', barcode: query, form: '', singlesBalance: '0', price: '0', cost: '0', packaging: '1', expirationDate: '' }], true);
-                const infoMsg = document.createElement('div');
-                infoMsg.style = "text-align:center; color: var(--primary-green); padding: 5px; font-weight:bold; font-size: 0.9rem; margin-bottom: 10px;";
-                infoMsg.innerText = "المادة غير موجودة بالنظام، يرجى إضافتها.";
-                resultsDiv.prepend(infoMsg);
-            } else { resultsDiv.style.display = 'none'; }
-        });
-
-        function clearSearch() {
-            searchInput.value = '';
-            clearBtn.style.display = 'none';
-            isEditingNew = false;
-            displayLimit = 20;
-            loadDefaultInventory();
-        }
-
-        // دالة تحديث حالة الاتصال في الشريط
-        function updateStatusUI() {
-            const bar = document.getElementById('status-bar');
-            bar.innerHTML = navigator.onLine ? `متصل بالإنترنت ☁️ (${inventory.length} مادة)` : `وضع عدم الاتصال ⏳ (البيانات محفوظة محلياً)`;
-            bar.style.color = navigator.onLine ? "#198754" : "#dc3545";
-        }
-
-        db.collection('pos_data').doc('inventory').onSnapshot((doc) => {
-            if (doc.exists) {
-                inventory = JSON.parse(doc.data().jsonData);
-                updateStatusUI();
-                if(searchInput.value.trim() === '' && !isEditingNew) { loadDefaultInventory(); }
-            }
-        });
-
-        function loadDefaultInventory() {
-            if (inventory.length === 0) { resultsDiv.style.display = 'none'; return; }
-            renderCards(inventory.slice(0, displayLimit));
-        }
-
-        function cancelEdit() { clearSearch(); }
-
-        function deleteItem(barcode) {
-            if(confirm("هل أنت متأكد من حذف هذه المادة؟")) {
-                inventory = inventory.filter(i => i.barcode !== barcode);
-                db.collection('pos_data').doc('inventory').set({ jsonData: JSON.stringify(inventory) }, { merge: true });
-                clearSearch();
-            }
-        }
-
-        function getInitialPackBalance(s, p, f) {
-            let singles = parseInt(String(s).replace(/,/g, '')) || 0;
-            let pkg = parseInt(String(p).replace(/,/g, '')) || 1;
-            if (pkg === 1) return `${singles} ${f || 'قطعة'}`;
-            return `${Math.floor(singles / pkg)} باكيت و ${singles % pkg} شريط`;
-        }
-
-        function renderCards(items, isNewMode = false) {
-            resultsDiv.innerHTML = '';
-            if (items.length === 0 && !isNewMode) { resultsDiv.style.display = 'none'; return; }
-            
-            items.forEach((item) => {
-                const safeId = 'id' + Math.random().toString(36).substr(2, 9);
-                const packBalText = getInitialPackBalance(item.singlesBalance, item.packaging, item.form);
-                const expVal = item.expirationDate ? item.expirationDate.replace(/\//g, '-') : '';
-
-                const card = document.createElement('div');
-                card.className = 'result-card';
-                card.innerHTML = `
-                    <div class="card-header-action">
-                        ${!isNewMode ? `<button class="delete-btn-top btn-delete" onclick="deleteItem('${item.barcode}')">🗑️ حذف</button>` : ''}
-                        <button class="cancel-btn-top" onclick="cancelEdit()">❌ إلغاء</button>
-                        <button class="save-btn-top" onclick="saveData('${item.barcode}', '${safeId}', ${isNewMode})">💾 حفظ</button>
-                    </div>
-                    
-                    <div class="card-row-name">
-                        <div class="input-group-inline">
-                            <label>اسم المادة</label>
-                            <textarea id="name-${safeId}" class="inline-input name-textarea" style="color: var(--primary-blue);" placeholder="الاسم" rows="2">${item.name || ''}</textarea>
-                        </div>
-                    </div>
-
-                    <div class="flex-row">
-                        <div class="input-group-inline" style="flex: 0.6;">
-                            <label>الشكل</label>
-                            <input type="text" id="form-${safeId}" class="inline-input" value="${item.form || ''}" oninput="calculatePackBalance('${safeId}')" placeholder="الشكل">
-                        </div>
-                        <div class="input-group-inline" style="flex: 1.4;">
-                            <label>الباركود</label>
-                            <div class="barcode-input-container">
-                                <input type="text" id="bar-${safeId}" class="inline-input" style="direction: ltr; font-family: monospace; font-size: 0.8rem; flex-grow: 1;" value="${item.barcode || ''}" placeholder="الباركود">
-                                <button class="action-btn" style="width: 38px; height: 38px; padding: 5px;" onclick="handleBarcodeClick('bar-${safeId}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex-row">
-                        <div class="input-group-inline group-pkg">
-                            <label>التعبئة</label>
-                            <input type="text" inputmode="decimal" id="pkg-${safeId}" class="inline-input" value="${formatNum(item.packaging)}" oninput="onNumberInput(this); calculatePackBalance('${safeId}')">
-                        </div>
-                        <div class="input-group-inline group-bal">
-                            <label>العدد (مفرد)</label>
-                            <input type="text" inputmode="decimal" id="bal-${safeId}" class="inline-input" value="${formatNum(item.singlesBalance)}" oninput="onNumberInput(this); calculatePackBalance('${safeId}')">
-                        </div>
-                        <div class="input-group-inline group-packbal">
-                            <label>الباكيت</label>
-                            <input type="text" id="packbal-${safeId}" class="inline-input readonly-input" value="${packBalText}" readonly tabindex="-1">
-                        </div>
-                    </div>
-
-                    <div class="flex-row">
-                        <div class="input-group-inline group-cost">
-                            <label>التكلفة</label>
-                            <input type="text" inputmode="decimal" id="cost-${safeId}" class="inline-input" value="${formatNum(item.cost || 0)}" oninput="onNumberInput(this)">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>البيع</label>
-                            <input type="text" inputmode="decimal" id="pri-${safeId}" class="inline-input" value="${formatNum(item.price)}" oninput="onNumberInput(this)">
-                        </div>
-                        <div class="input-group-inline group-exp">
-                            <label>النفاذ</label>
-                            <input type="text" inputmode="numeric" id="exp-${safeId}" class="inline-input date-input" value="${expVal}" placeholder="YYYY-MM-DD" oninput="formatDateDirect(this)">
-                        </div>
-                    </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            resultsDiv.style.display = 'flex';
-        }
-
-        function showAddNewCard() {
-            isEditingNew = true; clearBtn.style.display = 'none'; searchInput.value = '';
-            renderCards([{ name: '', barcode: '', form: '', singlesBalance: '0', price: '0', cost: '0', packaging: '1', expirationDate: '' }], true);
-        }
-
-        function saveData(oldBarcode, safeId, isNew) {
-            const newName = document.getElementById(`name-${safeId}`).value.trim();
-            const newBar = document.getElementById(`bar-${safeId}`).value.trim();
-            if (!newName || !newBar) { alert("يرجى إدخال الاسم والباركود على الأقل."); return; }
-
-            const itemObj = {
-                name: newName, barcode: newBar, form: document.getElementById(`form-${safeId}`).value.trim(),
-                singlesBalance: String(Number(document.getElementById(`bal-${safeId}`).value.replace(/,/g, '')) || 0),
-                cost: String(Number(document.getElementById(`cost-${safeId}`).value.replace(/,/g, '')) || 0),
-                price: String(Number(document.getElementById(`pri-${safeId}`).value.replace(/,/g, '')) || 0),
-                packaging: String(Number(document.getElementById(`pkg-${safeId}`).value.replace(/,/g, '')) || 1),
-                expirationDate: document.getElementById(`exp-${safeId}`).value
-            };
-
-            if (isNew) {
-                itemObj.id = inventory.length > 0 ? Math.max(...inventory.map(i => Number(i.id) || 0)) + 1 : 1;
-                inventory.push(itemObj);
-            } else {
-                const idx = inventory.findIndex(i => i.barcode === oldBarcode);
-                if (idx !== -1) { itemObj.id = inventory[idx].id; inventory[idx] = itemObj; }
-            }
-
-            const toast = document.getElementById('toast');
-            toast.textContent = navigator.onLine ? "تم الحفظ بنجاح ✓" : "تم الحفظ ✓ (تتم المزامنة عند توفر انترنت)";
-            toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500);
-            
-            clearSearch();
-            db.collection('pos_data').doc('inventory').set({ jsonData: JSON.stringify(inventory) }, { merge: true });
-        }
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
         
-        let html5QrCode = null; 
+        let defaultWidth = 1280;
+        let defaultHeight = 720;
+        canvas.width = defaultWidth;
+        canvas.height = defaultHeight;
 
-        // -- نظام الكاميرا الشامل الجديد --
-        function handleBarcodeClick(targetId) {
-            currentScanTarget = targetId;
-            // فحص الإعدادات: هل اختار المستخدم الكاميرا الأصلية؟
-            if (appSettings.nativeCam) {
-                document.getElementById('native-camera-input').click();
-            } else {
-                startCamera(targetId);
+        let timeline = []; 
+        let backgroundAudio = null; 
+        let isPlaying = false;
+        let isExporting = false;
+        let currentAnimationId = null;
+        let exportMediaRecorder = null;
+        let exportChunks = [];
+        let editingIndex = -1;
+
+        let audioCtx;
+        let destStream;
+
+        // UI Elements
+        const mediaInput = document.getElementById('mediaInput');
+        const audioInput = document.getElementById('audioInput');
+        const resolutionSelect = document.getElementById('resolutionSelect');
+        const autoOcrRotateCheckbox = document.getElementById('autoOcrRotate');
+        
+        const timelineContainer = document.getElementById('timelineContainer');
+        const emptyTimelineMsg = document.getElementById('emptyTimelineMsg');
+        const emptyStateMsg = document.getElementById('emptyStateMsg');
+        const emptyIcon = document.getElementById('emptyIcon');
+        const emptyText = document.getElementById('emptyText');
+        
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const exportBtn = document.getElementById('exportBtn');
+        
+        const exportOverlay = document.getElementById('exportOverlay');
+        const processingUI = document.getElementById('processingUI');
+        const doneUI = document.getElementById('doneUI');
+        const exportProgressBar = document.getElementById('exportProgressBar');
+        const exportProgressText = document.getElementById('exportProgressText');
+        
+        const finalDownloadBtn = document.getElementById('finalDownloadBtn');
+        const finalShareBtn = document.getElementById('finalShareBtn');
+        const finalCloseBtn = document.getElementById('finalCloseBtn');
+        let finalVideoBlob = null;
+        let finalVideoExt = '';
+
+        // Modal Elements
+        const modal = document.getElementById('clipSettingsModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const saveModalBtn = document.getElementById('saveModalBtn');
+        const deleteClipBtn = document.getElementById('deleteClipBtn');
+        const clipFitRadios = document.getElementsByName('clipFitMode');
+        const clipZoomInput = document.getElementById('clipZoomInput');
+        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
+        const clipRotateBtn = document.getElementById('clipRotateBtn');
+        const clipAutoRotateBtn = document.getElementById('clipAutoRotateBtn');
+        const clipDurationInput = document.getElementById('clipDurationInput');
+        const durationControlGroup = document.getElementById('durationControlGroup');
+
+        function getAudioMode() { return document.querySelector('input[name="audioMode"]:checked').value; }
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // --- دالة اكتشاف اتجاه النص وإصلاحه ---
+        async function getSmartRotation(imageElement) {
+            let worker = null;
+            try {
+                // 1. تحويل الصورة إلى Canvas لتجنب مشاكل الوصول والأمان (CORS / Blob) داخل الـ Web Worker
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = imageElement.videoWidth || imageElement.width || 800;
+                tempCanvas.height = imageElement.videoHeight || imageElement.height || 800;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                // 2. استخدام الدالة الصحيحة لاكتشاف اتجاه المستندات (OSD)
+                worker = await Tesseract.createWorker('osd');
+                const result = await worker.detect(tempCanvas);
+                
+                await worker.terminate();
+                worker = null;
+                
+                let deg = 0;
+                if (result && result.data && typeof result.data.orientation_degrees === 'number') {
+                    deg = result.data.orientation_degrees;
+                    console.log("تم اكتشاف زاوية الدوران بواسطة الذكاء الاصطناعي:", deg);
+                }
+                
+                if (deg !== 0) {
+                    // إذا كان النص مائلاً بمقدار 90 درجة، يجب تدوير الشاشة بمقدار 270 (360 - 90) لتعديله
+                    return (360 - deg) % 360;
+                }
+                return 0;
+            } catch (e) {
+                console.error("فشل الذكاء الاصطناعي في تحديد الاتجاه:", e);
+                if (worker) await worker.terminate();
+                return 0;
             }
         }
 
-        // معالجة الصورة الملتقطة من الكاميرا الأصلية
-        document.getElementById('native-camera-input').addEventListener('change', function(e) {
-            if (e.target.files.length === 0) return;
-            const file = e.target.files[0];
-            
-            // تحديث شريط الحالة لتنبيه المستخدم
-            const statusBar = document.getElementById('status-bar');
-            statusBar.innerHTML = "⏳ جاري استخراج الباركود من الصورة...";
-            statusBar.style.color = "var(--primary-blue)";
-
-            // استخدام المكتبة لمعالجة الصورة
-            const qrCodeFromFile = new Html5Qrcode("reader");
-            qrCodeFromFile.scanFile(file, true)
-                .then(decodedText => {
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    const targetElement = document.getElementById(currentScanTarget);
-                    if (targetElement) { 
-                        targetElement.value = decodedText; 
-                        targetElement.dispatchEvent(new Event('input')); 
-                    }
-                    const toast = document.getElementById('toast');
-                    toast.textContent = "تم استخراج الباركود بنجاح ✓";
-                    toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500);
-                })
-                .catch(err => {
-                    alert("لم يتم العثور على باركود واضح. يرجى التقاط صورة أقرب للباركود مع إضاءة جيدة.");
-                })
-                .finally(() => {
-                    updateStatusUI(); // إرجاع شريط الحالة لحالته الطبيعية
-                    e.target.value = ''; // تصفير حقل الملف ليتمكن من التقاط صورة جديدة
-                });
+        // تغيير الدقة
+        resolutionSelect.addEventListener('change', (e) => {
+            const res = e.target.value;
+            if (res === '480') { defaultWidth = 854; defaultHeight = 480; }
+            else if (res === '720') { defaultWidth = 1280; defaultHeight = 720; }
+            else if (res === '1080') { defaultWidth = 1920; defaultHeight = 1080; }
+            canvas.width = defaultWidth; canvas.height = defaultHeight;
+            redrawCurrentOrFirst();
         });
-        
-        async function startCamera(targetInputId) {
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
+
+        // دالة الرسم الأساسية
+        function drawMedia(ctx, item, cw, ch) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, cw, ch);
+            
+            const img = item.element;
+            const rot = item.rotation || 0;
+            const scale = item.scale || 1.0;
+            const mode = item.fitMode || 'cover';
+
+            let iw = img.videoWidth || img.width;
+            let ih = img.videoHeight || img.height;
+            if (!iw || !ih) return;
+
+            let calcW = iw; let calcH = ih;
+            if (rot === 90 || rot === 270) { calcW = ih; calcH = iw; }
+
+            let drawW, drawH;
+            if (mode === 'stretch') {
+                if (rot === 90 || rot === 270) { drawW = ch; drawH = cw; } 
+                else { drawW = cw; drawH = ch; }
+            } else {
+                const hRatio = cw / calcW; const vRatio = ch / calcH;
+                const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
+                drawW = iw * ratio; drawH = ih * ratio;
+            }
+
+            drawW *= scale; drawH *= scale;
+
+            ctx.save();
+            ctx.translate(cw / 2, ch / 2);
+            ctx.rotate(rot * Math.PI / 180);
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+            ctx.restore();
+        }
+
+        function redrawCurrentOrFirst() {
+            if (isPlaying || timeline.length === 0) {
+                ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight);
+                return;
+            }
+            const idx = editingIndex >= 0 ? editingIndex : 0;
+            drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight);
+        }
+
+        function initAudioSystem() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                destStream = audioCtx.createMediaStreamDestination();
+            }
+        }
+
+        // معالجة الرفع
+        mediaInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            const isAutoOcr = autoOcrRotateCheckbox.checked;
+
+            // إظهار التحميل
+            emptyStateMsg.style.display = 'flex';
+            emptyIcon.className = "fa-solid fa-spinner fa-spin text-6xl text-indigo-500 mb-4";
+            emptyText.innerText = isAutoOcr ? "جاري المعالجة وتحليل النصوص للتدوير..." : "جاري المعالجة...";
+
+            for (let file of files) {
+                const id = Date.now() + Math.random().toString();
+                const defaultSettings = { scale: 1, fitMode: 'stretch' }; // تمطيط للجميع
+                
                 try {
-                    const scrollY = window.scrollY || document.documentElement.scrollTop;
-                    const holeTop = `calc(${scrollY}px + 50vh - 80px)`;
-                    const holeBottom = `calc(${scrollY}px + 50vh + 80px)`;
-                    
-                    document.getElementById('app-root').style.clipPath = `polygon(
-                        0% 0%, 100% 0%, 100% 100%, 0% 100%, 
-                        0% ${holeTop}, 
-                        calc(50vw - 140px) ${holeTop}, 
-                        calc(50vw - 140px) ${holeBottom}, 
-                        calc(50vw + 140px) ${holeBottom}, 
-                        calc(50vw + 140px) ${holeTop}, 
-                        calc(50vw - 140px) ${holeTop}, 
-                        0% ${holeTop}
-                    )`;
-
-                    document.body.classList.add('scanning-active');
-                    await Capacitor.Plugins.BarcodeScanner.checkPermission({ force: true });
-                    Capacitor.Plugins.BarcodeScanner.hideBackground();
-                    
-                    const result = await Capacitor.Plugins.BarcodeScanner.startScan({
-                        targetedFormats: ['EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E', 'CODE_39']
-                    });
-                    
-                    if (result.hasContent) {
-                        const targetElement = document.getElementById(currentScanTarget);
-                        if(targetElement) { targetElement.value = result.content; targetElement.dispatchEvent(new Event('input')); }
+                    if (file.type === 'application/pdf') {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const viewport = page.getViewport({ scale: 2.0 });
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = viewport.width; tempCanvas.height = viewport.height;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
+                            
+                            const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
+                            const img = new Image(); img.src = dataUrl;
+                            await new Promise(r => img.onload = r);
+                            
+                            let rot = 0;
+                            if (isAutoOcr) {
+                                emptyText.innerText = `تحليل صفحة ${i}...`;
+                                rot = await getSmartRotation(img);
+                            }
+                            
+                            timeline.push({ id: id+i, type: 'image', name: `صفحة ${i} - ${file.name.substring(0,6)}`, element: img, duration: 4, url: dataUrl, rotation: rot, ...defaultSettings });
+                        }
+                    } else if (file.type.startsWith('image/')) {
+                        const url = URL.createObjectURL(file);
+                        const img = new Image(); img.src = url;
+                        await new Promise(r => img.onload = r);
+                        
+                        let rot = 0;
+                        if (isAutoOcr) {
+                            emptyText.innerText = `تحليل اتجاه الصورة...`;
+                            rot = await getSmartRotation(img);
+                        }
+                        
+                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, rotation: rot, ...defaultSettings });
+                    } else if (file.type.startsWith('video/')) {
+                        const url = URL.createObjectURL(file);
+                        const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
+                        await new Promise(r => vid.onloadedmetadata = r);
+                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, rotation: 0, ...defaultSettings });
                     }
-                } catch (e) { alert("تعذر فتح الكاميرا: " + e); } finally { stopCapacitorScan(); }
-            } else { useHtml5QrCodeFallback(); }
-        }
-
-        function stopCapacitorScan() {
-            if (window.Capacitor && window.Capacitor.Plugins.BarcodeScanner) {
-                Capacitor.Plugins.BarcodeScanner.showBackground();
-                Capacitor.Plugins.BarcodeScanner.stopScan();
+                } catch (err) { console.error("Error processing file", err); alert(`حدث خطأ أثناء قراءة الملف: ${file.name}`); }
             }
-            document.body.classList.remove('scanning-active');
-            document.getElementById('app-root').style.clipPath = 'none'; 
-        }
-
-        function useHtml5QrCodeFallback() {
-            document.getElementById('reader-wrapper').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' });
-            html5QrCode = new Html5Qrcode("reader");
             
-            // الإعدادات الجديدة لطلب أقصى دقة والتركيز التلقائي
-            const config = { 
-                fps: 10,
-                qrbox: { width: 260, height: 110 },
-                videoConstraints: {
-                    facingMode: "environment",
-                    advanced: [{ focusMode: "continuous" }],
-                    width: { min: 1280, ideal: 1920, max: 3840 },
-                    height: { min: 720, ideal: 1080, max: 2160 }
-                }
-            };
+            emptyStateMsg.style.display = 'none';
+            emptyIcon.className = "fa-regular fa-images text-6xl text-gray-600 mb-4";
+            emptyText.innerText = "الشاشة فارغة، أضف صوراً أو مقاطع";
 
-            html5QrCode.start({ facingMode: "environment" }, config,
-                (decodedText) => {
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    const targetElement = document.getElementById(currentScanTarget);
-                    if(targetElement) { targetElement.value = decodedText; targetElement.dispatchEvent(new Event('input')); }
-                    closeWebCamera(); 
-                }
-            ).catch(err => { 
-                alert("تعذر تشغيل كاميرا الويب. تأكد من إعطاء الصلاحيات."); 
-                closeWebCamera(); 
+            renderTimelineUI();
+            if (!isPlaying && timeline.length > 0) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
+            mediaInput.value = '';
+        });
+
+        audioInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            const audio = new Audio(url); await new Promise(r => audio.onloadedmetadata = r);
+            backgroundAudio = { name: file.name, element: audio, duration: audio.duration, url };
+            document.getElementById('audioUploadContainer').classList.add('ring-2', 'ring-pink-500', 'bg-gray-700');
+            document.querySelector('#audioUploadContainer span').textContent = file.name;
+            document.getElementById('removeAudioBtn').classList.remove('hidden'); document.getElementById('removeAudioBtn').classList.add('flex');
+            audioInput.value = '';
+        });
+
+        document.getElementById('removeAudioBtn').addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (backgroundAudio) { URL.revokeObjectURL(backgroundAudio.url); backgroundAudio = null; }
+            document.getElementById('audioUploadContainer').classList.remove('ring-2', 'ring-pink-500', 'bg-gray-700');
+            document.querySelector('#audioUploadContainer span').textContent = 'موسيقى خارجية';
+            document.getElementById('removeAudioBtn').classList.add('hidden'); document.getElementById('removeAudioBtn').classList.remove('flex');
+        });
+
+        // واجهة المخطط الزمني
+        function renderTimelineUI() {
+            timelineContainer.innerHTML = '';
+            if (timeline.length === 0) {
+                timelineContainer.appendChild(emptyTimelineMsg);
+                emptyTimelineMsg.style.display = 'block'; emptyStateMsg.style.display = 'flex';
+                ctx.clearRect(0,0, defaultWidth, defaultHeight); return;
+            }
+            emptyTimelineMsg.style.display = 'none'; emptyStateMsg.style.display = 'none';
+
+            timeline.forEach((item, index) => {
+                const el = document.createElement('div');
+                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-2 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
+                
+                // النقر على جسم المقطع يفتح نافذة الإعدادات الكاملة
+                el.onclick = () => openClipSettings(index);
+                
+                const iconHTML = item.type === 'video' ? '<i class="fa-solid fa-video text-blue-400"></i>' : '<i class="fa-solid fa-image text-emerald-400"></i>';
+                const thumb = document.createElement('div');
+                thumb.className = "w-16 h-12 bg-black rounded shrink-0 flex items-center justify-center overflow-hidden relative";
+                if(item.type === 'image') {
+                    const imgThumb = document.createElement('img'); imgThumb.src = item.url;
+                    // إظهار التدوير في الصورة المصغرة للتوضيح
+                    imgThumb.style.transform = `rotate(${item.rotation || 0}deg)`;
+                    imgThumb.className = "w-full h-full object-cover opacity-80 transition-transform"; 
+                    thumb.appendChild(imgThumb);
+                } else { thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`; }
+
+                const details = document.createElement('div');
+                details.className = "flex-grow min-w-0 pointer-events-none";
+                
+                // إظهار حالة وضع العرض كنص صغير
+                let modeText = item.fitMode === 'cover' ? 'قص' : (item.fitMode === 'contain' ? 'احتواء' : 'تمطيط');
+                details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)} • ${modeText}</p>`;
+                
+                const iconDiv = document.createElement('div'); iconDiv.className = "w-5 flex items-center justify-center pointer-events-none"; iconDiv.innerHTML = iconHTML;
+
+                // --- الأزرار السريعة الجديدة ---
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = "flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition z-10 shrink-0";
+
+                // زر التبديل بين أوضاع العرض (Fit Toggle)
+                const fitBtn = document.createElement('button');
+                let fitIconClass = item.fitMode === 'cover' ? 'fa-crop-simple' : (item.fitMode === 'contain' ? 'fa-compress' : 'fa-arrows-left-right');
+                fitBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 rounded text-blue-400 flex items-center justify-center transition";
+                fitBtn.title = "تغيير الأبعاد (قص، احتواء، تمطيط)";
+                fitBtn.innerHTML = `<i class="fa-solid ${fitIconClass}"></i>`;
+                fitBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    // التبديل بين الحالات الثلاث
+                    if (item.fitMode === 'cover') item.fitMode = 'contain';
+                    else if (item.fitMode === 'contain') item.fitMode = 'stretch';
+                    else item.fitMode = 'cover';
+                    
+                    if (editingIndex === index) redrawCurrentOrFirst();
+                    renderTimelineUI();
+                };
+
+                // زر التدوير (Rotate)
+                const rotateBtn = document.createElement('button');
+                rotateBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 rounded text-yellow-400 flex items-center justify-center transition";
+                rotateBtn.title = "تدوير 90 درجة";
+                rotateBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+                rotateBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    item.rotation = ((item.rotation || 0) + 90) % 360;
+                    if (editingIndex === index) redrawCurrentOrFirst();
+                    renderTimelineUI();
+                };
+
+                // زر الحذف السريع (X)
+                const delBtn = document.createElement('button');
+                delBtn.className = "w-7 h-7 bg-red-600/80 hover:bg-red-500 rounded text-white flex items-center justify-center transition ml-1";
+                delBtn.title = "حذف";
+                delBtn.innerHTML = '<i class="fa-solid fa-xmark text-lg"></i>';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if(!timeline[index].name.includes("صفحة")) URL.revokeObjectURL(timeline[index].url); 
+                    timeline.splice(index, 1);
+                    
+                    // تحديث مؤشر التعديل لكي لا يتعطل الرسم إذا تم حذف العنصر المعروض حالياً
+                    if (editingIndex === index) {
+                        editingIndex = timeline.length > 0 ? Math.max(0, index - 1) : -1;
+                        redrawCurrentOrFirst();
+                    } else if (editingIndex > index) {
+                        editingIndex--;
+                    }
+                    
+                    if(timeline.length === 0) {
+                        ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight);
+                        emptyStateMsg.style.display = 'flex';
+                    }
+                    renderTimelineUI();
+                };
+
+                actionsDiv.appendChild(fitBtn);
+                actionsDiv.appendChild(rotateBtn);
+                actionsDiv.appendChild(delBtn);
+
+                el.appendChild(thumb); el.appendChild(iconDiv); el.appendChild(details); el.appendChild(actionsDiv);
+                timelineContainer.appendChild(el);
             });
         }
 
-        function closeWebCamera() {
-            if (html5QrCode && html5QrCode.isScanning) { html5QrCode.stop().catch(err => {}); }
-            document.getElementById('reader-wrapper').style.display = 'none';
+        // إعدادات المقطع (Modal)
+        function openClipSettings(index) {
+            if (isPlaying) stopPlayback();
+            editingIndex = index; const item = timeline[index];
+            redrawCurrentOrFirst(); renderTimelineUI(); 
+            clipFitRadios.forEach(r => r.checked = (r.value === item.fitMode));
+            clipZoomInput.value = item.scale; zoomValueDisplay.textContent = Math.round(item.scale * 100) + '%';
+            if (item.type === 'image') { durationControlGroup.style.display = 'block'; clipDurationInput.value = item.duration; } 
+            else { durationControlGroup.style.display = 'none'; }
+            modal.classList.remove('hidden'); modal.classList.add('flex');
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
-                window.Capacitor.Plugins.BarcodeScanner.prepare().catch(() => {});
+        function closeSettingsModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); renderTimelineUI(); }
+
+        clipFitRadios.forEach(radio => { radio.addEventListener('change', (e) => { if(editingIndex >= 0) { timeline[editingIndex].fitMode = e.target.value; redrawCurrentOrFirst(); } }); });
+        clipZoomInput.addEventListener('input', (e) => { if(editingIndex >= 0) { timeline[editingIndex].scale = parseFloat(e.target.value); zoomValueDisplay.textContent = Math.round(timeline[editingIndex].scale * 100) + '%'; redrawCurrentOrFirst(); } });
+        clipRotateBtn.addEventListener('click', () => { if(editingIndex >= 0) { timeline[editingIndex].rotation = ((timeline[editingIndex].rotation || 0) + 90) % 360; redrawCurrentOrFirst(); } });
+        clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
+        
+        // رز التدوير الذكي (اليدوي) داخل النافذة
+        clipAutoRotateBtn.addEventListener('click', async () => {
+            if(editingIndex >= 0) {
+                const item = timeline[editingIndex];
+                if (item.type !== 'image') { alert('التدوير الذكي للنصوص مدعوم للصور والـ PDF فقط.'); return; }
+                
+                const btnIcon = clipAutoRotateBtn.querySelector('i');
+                btnIcon.className = "fa-solid fa-spinner fa-spin";
+                
+                const rot = await getSmartRotation(item.element);
+                if (rot !== 0) {
+                    // إضافة التدوير المقترح للتدوير الحالي لضبط الاتجاه
+                    item.rotation = rot;
+                    redrawCurrentOrFirst();
+                } else {
+                    alert("إما أن اتجاه الصورة صحيح بالفعل، أو لم يجد الذكاء الاصطناعي نصاً كافياً لتحليل الاتجاه.");
+                }
+                
+                btnIcon.className = "fa-solid fa-wand-magic-sparkles";
             }
         });
+
+        deleteClipBtn.addEventListener('click', () => {
+            if(editingIndex >= 0) {
+                if(!timeline[editingIndex].name.includes("صفحة")) URL.revokeObjectURL(timeline[editingIndex].url); 
+                timeline.splice(editingIndex, 1);
+                editingIndex = timeline.length > 0 ? timeline.length -1 : -1; 
+                closeSettingsModal();
+                redrawCurrentOrFirst();
+                if(timeline.length === 0) emptyStateMsg.style.display = 'flex';
+            }
+        });
+        closeModalBtn.addEventListener('click', closeSettingsModal); saveModalBtn.addEventListener('click', closeSettingsModal);
+
+        // التشغيل والتصدير
+        function playTimelineItem(item, exportMode = false) {
+            return new Promise(async (resolve) => {
+                if (!isPlaying) return resolve();
+                editingIndex = timeline.indexOf(item);
+                highlightTimelineItem(editingIndex);
+
+                let startTime = performance.now();
+                const audioMode = getAudioMode();
+                
+                const checkAndDrawFrame = () => {
+                    if (!isPlaying) return resolve();
+                    const elapsedSec = (performance.now() - startTime) / 1000;
+                    
+                    if (elapsedSec >= item.duration) {
+                        if (item.type === 'video') item.element.pause();
+                        return resolve();
+                    }
+                    
+                    drawMedia(ctx, item, defaultWidth, defaultHeight);
+                    currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
+                };
+
+                if (item.type === 'image') {
+                    currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
+                } else if (item.type === 'video') {
+                    const vid = item.element; vid.currentTime = 0;
+                    if (audioMode === 'musicOnly') vid.muted = true;
+                    else if (audioMode === 'mix') {
+                        vid.muted = false;
+                        if (exportMode && audioCtx && !vid.muted) {
+                            try {
+                                if (!vid._hasAudioNode) {
+                                    const sourceNode = audioCtx.createMediaElementSource(vid);
+                                    sourceNode.connect(destStream); sourceNode.connect(audioCtx.destination); 
+                                    vid._hasAudioNode = sourceNode;
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                    try { await vid.play(); } catch(err) { return resolve(); }
+                    currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
+                }
+            });
+        }
+
+        async function startPlayback(exportMode = false) {
+            if (timeline.length === 0) return;
+            initAudioSystem();
+            if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+            
+            isPlaying = true; toggleButtons(true);
+            let totalDuration = timeline.reduce((sum, item) => sum + item.duration, 0);
+            let playbackStartTime = performance.now();
+
+            if (exportMode) {
+                processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
+                doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
+                exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+                exportProgressBar.style.width = '0%'; exportProgressText.innerText = '0%';
+                
+                const canvasStream = canvas.captureStream(30);
+                const tracks = [canvasStream.getVideoTracks()[0]];
+                if (audioCtx && destStream) tracks.push(destStream.stream.getAudioTracks()[0]);
+                
+                const combinedStream = new MediaStream(tracks); exportChunks = [];
+                let mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm; codecs=vp8,opus';
+                try { exportMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mime }); } 
+                catch(e) { exportMediaRecorder = new MediaRecorder(combinedStream); }
+                
+                exportMediaRecorder.ondataavailable = e => { if (e.data.size > 0) exportChunks.push(e.data); };
+                exportMediaRecorder.onstop = finalizeExport;
+                exportMediaRecorder.start(100); 
+            }
+
+            if (backgroundAudio) {
+                backgroundAudio.element.currentTime = 0; backgroundAudio.element.volume = 1.0; 
+                if (exportMode && audioCtx) {
+                     try {
+                        if (!backgroundAudio.element._hasAudioNode) {
+                            const bgAudioSource = audioCtx.createMediaElementSource(backgroundAudio.element);
+                            bgAudioSource.connect(destStream); bgAudioSource.connect(audioCtx.destination);
+                            backgroundAudio.element._hasAudioNode = bgAudioSource;
+                        }
+                    } catch(e) {}
+                }
+                backgroundAudio.element.play();
+            }
+
+            const uiTimer = setInterval(() => {
+                if(!isPlaying) { clearInterval(uiTimer); return; }
+                let elapsedSec = (performance.now() - playbackStartTime) / 1000;
+                
+                if (exportMode) {
+                    let percent = Math.min(100, Math.floor((elapsedSec / totalDuration) * 100));
+                    exportProgressBar.style.width = percent + '%'; exportProgressText.innerText = percent + '%';
+                }
+                timeDisplay.textContent = formatTime(Math.floor(elapsedSec));
+                
+                if (elapsedSec > totalDuration + 0.5 && isExporting) { clearInterval(uiTimer); stopPlayback(); }
+            }, 100);
+
+            for (let i = 0; i < timeline.length; i++) {
+                if (!isPlaying) break;
+                await playTimelineItem(timeline[i], exportMode);
+            }
+
+            if (backgroundAudio) backgroundAudio.element.pause();
+            if (exportMode && isPlaying) {
+                if (exportMediaRecorder && exportMediaRecorder.state !== 'inactive') exportMediaRecorder.stop();
+            } else { stopPlayback(); }
+        }
+
+        function stopPlayback() {
+            isPlaying = false; toggleButtons(false);
+            if (currentAnimationId) cancelAnimationFrame(currentAnimationId);
+            if (backgroundAudio) backgroundAudio.element.pause();
+            timeline.forEach(item => { if(item.type === 'video') item.element.pause(); });
+            
+            if (isExporting && exportMediaRecorder && exportMediaRecorder.state !== 'inactive') exportMediaRecorder.stop(); 
+            else exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+            
+            isExporting = false; timeDisplay.textContent = "00:00";
+            removeHighlight(); redrawCurrentOrFirst();
+        }
+
+        function finalizeExport() {
+            stopPlayback();
+            if (exportChunks.length === 0) { exportOverlay.classList.add('hidden'); return; }
+            
+            let type = exportMediaRecorder.mimeType.includes('mp4') ? 'video/mp4' : 'video/webm';
+            finalVideoExt = type === 'video/mp4' ? 'mp4' : 'webm';
+            finalVideoBlob = new Blob(exportChunks, { type: type });
+            
+            processingUI.classList.add('hidden'); processingUI.classList.remove('flex');
+            doneUI.classList.remove('hidden'); doneUI.classList.add('flex');
+            exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+
+            try {
+                const file = new File([finalVideoBlob], `Video_${Date.now()}.${finalVideoExt}`, { type: type });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) finalShareBtn.classList.remove('hidden');
+            } catch (e) {}
+        }
+
+        function toggleButtons(playing) {
+            if (playing) { playBtn.classList.add('hidden'); stopBtn.classList.remove('hidden'); exportBtn.disabled = true; exportBtn.classList.add('opacity-50'); } 
+            else { playBtn.classList.remove('hidden'); stopBtn.classList.add('hidden'); exportBtn.disabled = false; exportBtn.classList.remove('opacity-50'); }
+        }
+
+        function highlightTimelineItem(index) {
+            const items = document.querySelectorAll('.clip-item');
+            items.forEach((item, i) => {
+                if(i === index) { item.classList.add('active'); item.style.borderColor = '#6366f1'; }
+                else { item.classList.remove('active'); item.style.borderColor = 'transparent'; }
+            });
+            if (items[index]) items[index].scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        function removeHighlight() { renderTimelineUI(); }
+
+        playBtn.addEventListener('click', () => startPlayback(false));
+        stopBtn.addEventListener('click', stopPlayback);
+        exportBtn.addEventListener('click', () => { if (timeline.length === 0) return; isExporting = true; startPlayback(true); });
+
+        finalDownloadBtn.addEventListener('click', () => {
+            if (!finalVideoBlob) return;
+            const url = URL.createObjectURL(finalVideoBlob); const a = document.createElement('a'); a.style.display = 'none';
+            a.href = url; a.download = `Edited_Video_${Date.now()}.${finalVideoExt}`; document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        });
+
+        finalShareBtn.addEventListener('click', async () => {
+            if (!finalVideoBlob) return;
+            const file = new File([finalVideoBlob], `Edited_Video_${Date.now()}.${finalVideoExt}`, { type: finalVideoBlob.type });
+            try { await navigator.share({ title: 'فيديو جديد', text: 'شاهد هذا الفيديو!', files: [file] }); } catch (err) { }
+        });
+
+        finalCloseBtn.addEventListener('click', () => { exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex'); });
+
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
+
     </script>
 </body>
 </html>
