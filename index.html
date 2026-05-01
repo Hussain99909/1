@@ -8,13 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- مكتبة PDF.js لمعالجة ملفات الـ PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
-    
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
         
@@ -23,8 +16,6 @@
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        .overlay-blur { backdrop-filter: blur(5px); }
-        
         .clip-item { transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
         .clip-item:hover { border-color: #4b5563; }
         .clip-item.active { border-color: #6366f1; background-color: #374151; }
@@ -40,6 +31,44 @@
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col h-screen overflow-hidden relative">
 
+    <!-- حاجز الشاشة لمنع النقر أثناء التصدير (شفاف بالكامل لكي لا يوقف المتصفح الفيديو) -->
+    <div id="clickBlocker" class="fixed inset-0 z-40 hidden"></div>
+
+    <!-- شاشة التصدير العائمة (في المنتصف ولكن لا تغطي كامل الشاشة) -->
+    <div id="exportOverlay" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900 border-2 border-indigo-500 p-6 rounded-2xl shadow-2xl z-50 hidden flex-col items-center w-[90%] max-w-sm">
+        
+        <!-- واجهة التحميل -->
+        <div id="processingUI" class="flex flex-col items-center w-full">
+            <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
+            <h2 class="text-xl font-bold text-white mb-4">جاري معالجة الفيديو...</h2>
+            
+            <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
+                <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="exportProgressText" class="text-2xl font-bold text-indigo-300 mb-2 drop-shadow-md">0%</p>
+            
+            <p class="text-gray-400 text-xs text-center">يرجى إبقاء الشاشة مضاءة ومراقبة الفيديو في الخلفية حتى يكتمل.</p>
+        </div>
+
+        <!-- واجهة الانتهاء والمشاركة -->
+        <div id="doneUI" class="hidden flex-col items-center w-full">
+            <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
+            <h2 class="text-xl font-bold text-white mb-6">اكتمل صنع الفيديو بنجاح!</h2>
+            
+            <div class="flex flex-col gap-3 w-full">
+                <button id="finalDownloadBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg">
+                    <i class="fa-solid fa-download"></i> حفظ في الهاتف
+                </button>
+                
+                <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg hidden">
+                    <i class="fa-solid fa-share-nodes text-xl"></i> مشاركة وإرسال
+                </button>
+            </div>
+            
+            <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white underline text-sm transition">إغلاق والعودة للمحرر</button>
+        </div>
+    </div>
+
     <!-- شريط العنوان -->
     <header class="bg-gray-800 border-b border-gray-700 p-3 flex justify-between items-center z-10 shrink-0 shadow-md">
         <div class="flex items-center gap-3">
@@ -48,7 +77,7 @@
             </div>
             <div>
                 <h1 class="text-lg font-bold">محرر الفيديو الاحترافي</h1>
-                <p class="text-[10px] text-gray-400">قص، تدوير، أبعاد، ودمج مع الصوت</p>
+                <p class="text-[10px] text-gray-400">قص، تدوير، زووم، ودمج مع الصوت</p>
             </div>
         </div>
         <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
@@ -61,47 +90,13 @@
         <!-- مساحة العرض (Canvas) -->
         <section class="w-full h-[40vh] min-h-[250px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
             
-            <!-- شاشة التصدير مع نسبة مئوية والمشاركة -->
-            <div id="exportOverlay" class="absolute inset-0 bg-black/95 z-50 hidden flex-col items-center justify-center text-center p-6 overlay-blur">
-                
-                <!-- واجهة التحميل -->
-                <div id="processingUI" class="flex flex-col items-center w-full max-w-xs">
-                    <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
-                    <h2 class="text-2xl font-bold text-white mb-4">جاري صناعة الفيديو...</h2>
-                    
-                    <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
-                        <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
-                    </div>
-                    <p id="exportProgressText" class="text-2xl font-bold text-indigo-300 mb-4 drop-shadow-md">0%</p>
-                    
-                    <p class="text-gray-400 text-sm">يرجى البقاء في هذه الصفحة وعدم إغلاق الشاشة.</p>
-                </div>
-
-                <!-- واجهة الانتهاء -->
-                <div id="doneUI" class="hidden flex-col items-center w-full max-w-xs">
-                    <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
-                    <h2 class="text-2xl font-bold text-white mb-6">اكتمل صنع الفيديو!</h2>
-                    
-                    <div class="flex flex-col gap-3 w-full">
-                        <button id="finalDownloadBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg">
-                            <i class="fa-solid fa-download"></i> حفظ في الهاتف
-                        </button>
-                        <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg hidden">
-                            <i class="fa-brands fa-whatsapp text-xl"></i> مشاركة وإرسال
-                        </button>
-                    </div>
-                    <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white underline text-sm transition">إغلاق</button>
-                </div>
-
-            </div>
-
-            <!-- HD Canvas -->
+            <!-- HD Canvas (16:9) -->
             <div class="relative w-full max-w-4xl aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center">
                 <canvas id="previewCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
                 
-                <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-gray-800 p-4 text-center">
-                    <i id="emptyIcon" class="fa-regular fa-images text-6xl text-gray-600 mb-4"></i>
-                    <p id="emptyText" class="text-gray-400">الشاشة فارغة، أضف صوراً أو مقاطع من القائمة</p>
+                <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <i class="fa-regular fa-images text-6xl text-gray-600 mb-4"></i>
+                    <p class="text-gray-400">الشاشة فارغة، أضف صوراً أو مقاطع من القائمة</p>
                 </div>
             </div>
 
@@ -119,16 +114,15 @@
         </section>
 
         <!-- الشريط الجانبي (إضافة وسائط والشريط الزمني) -->
-        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-y-auto">
+        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-hidden">
             
             <div class="p-4 border-b border-gray-700 bg-gray-800 shrink-0 z-20 shadow-md">
-                
                 <!-- أزرار الرفع -->
-                <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="grid grid-cols-2 gap-3 mb-4">
                     <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500">
-                        <i class="fa-solid fa-file-pdf text-indigo-400 text-xl"></i>
-                        <span class="text-[10px] font-bold text-center">صور / فيديو / PDF</span>
-                        <input type="file" id="mediaInput" accept="image/*,video/*,.pdf" multiple class="hidden">
+                        <i class="fa-solid fa-image text-indigo-400 text-xl"></i>
+                        <span class="text-xs font-bold text-center">أضف صورة/فيديو</span>
+                        <input type="file" id="mediaInput" accept="image/*,video/*" multiple class="hidden">
                     </label>
                     
                     <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
@@ -142,8 +136,8 @@
                 </div>
 
                 <!-- إعدادات الصوت العامة -->
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 mb-3">
-                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> إعدادات الصوت</h4>
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> دمج الصوت للفيديو النهائي</h4>
                     <div class="flex items-center w-full text-xs">
                         <input type="radio" name="audioMode" id="modeMusicOnly" value="musicOnly" class="hidden custom-radio" checked>
                         <label for="modeMusicOnly" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
@@ -151,25 +145,14 @@
                         </label>
                         <input type="radio" name="audioMode" id="modeMix" value="mix" class="hidden custom-radio">
                         <label for="modeMix" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
-                            دمج الكل
+                            دمج الفيديوهات والموسيقى
                         </label>
                     </div>
                 </div>
-
-                <!-- إعدادات دقة تصدير الفيديو -->
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-display ml-1"></i> الدقة (Resolution)</h4>
-                    <select id="resolutionSelect" class="w-full bg-gray-800 text-white border border-gray-600 rounded-lg p-2 text-xs focus:ring-indigo-500 outline-none">
-                        <option value="480">SD (854x480) - حجم صغير للمشاركة</option>
-                        <option value="720" selected>HD (1280x720) - متوازن</option>
-                        <option value="1080">FHD (1920x1080) - جودة عالية</option>
-                    </select>
-                </div>
-
             </div>
 
             <!-- الشريط الزمني (Timeline) -->
-            <div class="flex-grow p-4 flex flex-col gap-2" id="timelineContainer">
+            <div class="flex-grow p-4 flex flex-col gap-2 overflow-y-auto" id="timelineContainer">
                 <div class="text-center text-gray-500 text-sm mt-8" id="emptyTimelineMsg">
                     <i class="fa-solid fa-arrow-up block text-2xl mb-2 opacity-50"></i>
                     أضف ملفات وابدأ المونتاج
@@ -179,8 +162,8 @@
         </section>
     </main>
 
-    <!-- نافذة تعديل المقطع (Modal) -->
-    <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center overlay-blur p-4">
+    <!-- نافذة تعديل المقطع المنبثقة (Modal) -->
+    <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
             <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
                 <h3 class="font-bold text-lg"><i class="fa-solid fa-sliders ml-2 text-indigo-400"></i> إعدادات المقطع</h3>
@@ -188,15 +171,15 @@
             </div>
             <div class="p-5 flex flex-col gap-5">
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 mb-2">القص والابعاد:</label>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">طريقة العرض (قص الزوائد):</label>
                     <div class="flex items-center w-full text-xs">
                         <input type="radio" name="clipFitMode" id="clipCover" value="cover" class="hidden custom-radio">
                         <label for="clipCover" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
-                            قص الزوائد
+                            قص (Cover)
                         </label>
                         <input type="radio" name="clipFitMode" id="clipContain" value="contain" class="hidden custom-radio">
                         <label for="clipContain" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800">
-                            احتواء
+                            احتواء كامل
                         </label>
                         <input type="radio" name="clipFitMode" id="clipStretch" value="stretch" class="hidden custom-radio">
                         <label for="clipStretch" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
@@ -216,20 +199,19 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 mb-2">التدوير:</label>
-                    <div class="flex gap-2">
-                        <button id="clipRotateBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs">
-                            <i class="fa-solid fa-rotate-right"></i> تدوير (90°)
-                        </button>
-                    </div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">التدوير (Rotate):</label>
+                    <button id="clipRotateBtn" class="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> تدوير 90 درجة
+                    </button>
                 </div>
                 <div id="durationControlGroup">
-                    <label class="block text-xs font-bold text-gray-400 mb-2">المدة (ثواني):</label>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">مدة الظهور (ثواني):</label>
                     <input type="number" id="clipDurationInput" min="1" max="60" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2 text-center">
                 </div>
             </div>
             <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
                 <button id="saveModalBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition">تم التعديل</button>
+                <button id="deleteClipBtn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold transition"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
     </div>
@@ -237,11 +219,8 @@
     <script>
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
-        
-        let defaultWidth = 1280;
-        let defaultHeight = 720;
-        canvas.width = defaultWidth;
-        canvas.height = defaultHeight;
+        const defaultWidth = canvas.width;  // 1280
+        const defaultHeight = canvas.height; // 720
 
         let timeline = []; 
         let backgroundAudio = null; 
@@ -251,42 +230,39 @@
         let exportMediaRecorder = null;
         let exportChunks = [];
         let editingIndex = -1;
+        let activeClipElapsedSec = 0; 
 
         let audioCtx;
         let destStream;
+        let silentOsc; // موجة صامتة لضمان استمرار الصوت
 
         // UI Elements
         const mediaInput = document.getElementById('mediaInput');
         const audioInput = document.getElementById('audioInput');
-        const resolutionSelect = document.getElementById('resolutionSelect');
-        
         const timelineContainer = document.getElementById('timelineContainer');
         const emptyTimelineMsg = document.getElementById('emptyTimelineMsg');
         const emptyStateMsg = document.getElementById('emptyStateMsg');
-        const emptyIcon = document.getElementById('emptyIcon');
-        const emptyText = document.getElementById('emptyText');
-        
         const playBtn = document.getElementById('playBtn');
         const stopBtn = document.getElementById('stopBtn');
         const timeDisplay = document.getElementById('timeDisplay');
         const exportBtn = document.getElementById('exportBtn');
         
+        // Modal & Overlay Elements
+        const clickBlocker = document.getElementById('clickBlocker');
         const exportOverlay = document.getElementById('exportOverlay');
         const processingUI = document.getElementById('processingUI');
         const doneUI = document.getElementById('doneUI');
         const exportProgressBar = document.getElementById('exportProgressBar');
         const exportProgressText = document.getElementById('exportProgressText');
-        
         const finalDownloadBtn = document.getElementById('finalDownloadBtn');
         const finalShareBtn = document.getElementById('finalShareBtn');
         const finalCloseBtn = document.getElementById('finalCloseBtn');
-        let finalVideoBlob = null;
-        let finalVideoExt = '';
 
-        // Modal Elements
+        // Clip Settings Modal Elements
         const modal = document.getElementById('clipSettingsModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const saveModalBtn = document.getElementById('saveModalBtn');
+        const deleteClipBtn = document.getElementById('deleteClipBtn');
         const clipFitRadios = document.getElementsByName('clipFitMode');
         const clipZoomInput = document.getElementById('clipZoomInput');
         const zoomValueDisplay = document.getElementById('zoomValueDisplay');
@@ -301,17 +277,7 @@
             return `${m}:${s}`;
         }
 
-        // تغيير الدقة
-        resolutionSelect.addEventListener('change', (e) => {
-            const res = e.target.value;
-            if (res === '480') { defaultWidth = 854; defaultHeight = 480; }
-            else if (res === '720') { defaultWidth = 1280; defaultHeight = 720; }
-            else if (res === '1080') { defaultWidth = 1920; defaultHeight = 1080; }
-            canvas.width = defaultWidth; canvas.height = defaultHeight;
-            redrawCurrentOrFirst();
-        });
-
-        // دالة الرسم الأساسية
+        // رسم الميديا على الكانفاس
         function drawMedia(ctx, item, cw, ch) {
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, cw, ch);
@@ -319,7 +285,7 @@
             const img = item.element;
             const rot = item.rotation || 0;
             const scale = item.scale || 1.0;
-            const mode = item.fitMode || 'cover';
+            const mode = item.fitMode || 'stretch'; // الوضع التلقائي تمطيط
 
             let iw = img.videoWidth || img.width;
             let ih = img.videoHeight || img.height;
@@ -348,74 +314,50 @@
         }
 
         function redrawCurrentOrFirst() {
-            if (isPlaying || timeline.length === 0) {
-                ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight);
-                return;
-            }
+            if (isPlaying || timeline.length === 0) return;
             const idx = editingIndex >= 0 ? editingIndex : 0;
             drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight);
         }
 
+        // نظام الصوت الذكي (يمنع الهاتف من إيقاف التسجيل)
         function initAudioSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 destStream = audioCtx.createMediaStreamDestination();
+                
+                // الموجة الصامتة: تمنع مسجل الفيديو من التجمد إذا لم يكن هناك صوت
+                silentOsc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                gain.gain.value = 0; // صامت
+                silentOsc.connect(gain);
+                gain.connect(destStream);
+                silentOsc.start();
             }
         }
 
-        // معالجة الرفع
+        // رفع الملفات
         mediaInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-
-            // إظهار التحميل
-            emptyStateMsg.style.display = 'flex';
-            emptyIcon.className = "fa-solid fa-spinner fa-spin text-6xl text-indigo-500 mb-4";
-            emptyText.innerText = "جاري المعالجة...";
+            emptyStateMsg.style.display = 'none';
 
             for (let file of files) {
+                const url = URL.createObjectURL(file);
                 const id = Date.now() + Math.random().toString();
-                const defaultSettings = { scale: 1, fitMode: 'stretch', rotation: 0 }; 
+                const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch' };
                 
-                try {
-                    if (file.type === 'application/pdf') {
-                        const arrayBuffer = await file.arrayBuffer();
-                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        for (let i = 1; i <= pdf.numPages; i++) {
-                            const page = await pdf.getPage(i);
-                            const viewport = page.getViewport({ scale: 2.0 });
-                            const tempCanvas = document.createElement('canvas');
-                            tempCanvas.width = viewport.width; tempCanvas.height = viewport.height;
-                            const tempCtx = tempCanvas.getContext('2d');
-                            await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
-                            
-                            const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
-                            const img = new Image(); img.src = dataUrl;
-                            await new Promise(r => img.onload = r);
-                            
-                            timeline.push({ id: id+i, type: 'image', name: `صفحة ${i} - ${file.name.substring(0,6)}`, element: img, duration: 4, url: dataUrl, ...defaultSettings });
-                        }
-                    } else if (file.type.startsWith('image/')) {
-                        const url = URL.createObjectURL(file);
-                        const img = new Image(); img.src = url;
-                        await new Promise(r => img.onload = r);
-                        
-                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
-                    } else if (file.type.startsWith('video/')) {
-                        const url = URL.createObjectURL(file);
-                        const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
-                        await new Promise(r => vid.onloadedmetadata = r);
-                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
-                    }
-                } catch (err) { console.error("Error processing file", err); alert(`حدث خطأ أثناء قراءة الملف: ${file.name}`); }
+                if (file.type.startsWith('image/')) {
+                    const img = new Image(); img.src = url;
+                    await new Promise(r => img.onload = r);
+                    timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
+                } else if (file.type.startsWith('video/')) {
+                    const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
+                    await new Promise(r => vid.onloadedmetadata = r);
+                    timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
+                }
             }
-            
-            emptyStateMsg.style.display = 'none';
-            emptyIcon.className = "fa-regular fa-images text-6xl text-gray-600 mb-4";
-            emptyText.innerText = "الشاشة فارغة، أضف صوراً أو مقاطع";
-
             renderTimelineUI();
-            if (!isPlaying && timeline.length > 0) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
+            if (!isPlaying) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
             mediaInput.value = '';
         });
 
@@ -439,7 +381,7 @@
             document.getElementById('removeAudioBtn').classList.add('hidden'); document.getElementById('removeAudioBtn').classList.remove('flex');
         });
 
-        // واجهة المخطط الزمني
+        // الشريط الزمني
         function renderTimelineUI() {
             timelineContainer.innerHTML = '';
             if (timeline.length === 0) {
@@ -447,11 +389,11 @@
                 emptyTimelineMsg.style.display = 'block'; emptyStateMsg.style.display = 'flex';
                 ctx.clearRect(0,0, defaultWidth, defaultHeight); return;
             }
-            emptyTimelineMsg.style.display = 'none'; emptyStateMsg.style.display = 'none';
+            emptyTimelineMsg.style.display = 'none';
 
             timeline.forEach((item, index) => {
                 const el = document.createElement('div');
-                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-2 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
+                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-3 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
                 el.onclick = () => openClipSettings(index);
                 
                 const iconHTML = item.type === 'video' ? '<i class="fa-solid fa-video text-blue-400"></i>' : '<i class="fa-solid fa-image text-emerald-400"></i>';
@@ -459,85 +401,20 @@
                 thumb.className = "w-16 h-12 bg-black rounded shrink-0 flex items-center justify-center overflow-hidden relative";
                 if(item.type === 'image') {
                     const imgThumb = document.createElement('img'); imgThumb.src = item.url;
-                    imgThumb.style.transform = `rotate(${item.rotation || 0}deg)`;
-                    imgThumb.className = "w-full h-full object-cover opacity-80 transition-transform"; 
-                    thumb.appendChild(imgThumb);
+                    imgThumb.className = "w-full h-full object-cover opacity-80"; thumb.appendChild(imgThumb);
                 } else { thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`; }
 
                 const details = document.createElement('div');
                 details.className = "flex-grow min-w-0 pointer-events-none";
-                let modeText = item.fitMode === 'cover' ? 'قص' : (item.fitMode === 'contain' ? 'احتواء' : 'تمطيط');
-                details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)} • ${modeText}</p>`;
-                
+                details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)}</p>`;
+                const editIcon = document.createElement('div'); editIcon.className = "text-indigo-400 text-lg opacity-50 group-hover:opacity-100 transition px-2"; editIcon.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
                 const iconDiv = document.createElement('div'); iconDiv.className = "w-5 flex items-center justify-center pointer-events-none"; iconDiv.innerHTML = iconHTML;
 
-                // --- الأزرار السريعة ظاهرة دائماً ---
-                const actionsDiv = document.createElement('div');
-                // تم إزالة خصائص الإخفاء (opacity-0) لتبقى الأزرار ظاهرة دائماً
-                actionsDiv.className = "flex items-center gap-1 opacity-100 transition z-10 shrink-0";
-
-                // زر التبديل بين أوضاع العرض (Fit Toggle)
-                const fitBtn = document.createElement('button');
-                let fitIconClass = item.fitMode === 'cover' ? 'fa-crop-simple' : (item.fitMode === 'contain' ? 'fa-compress' : 'fa-arrows-left-right');
-                fitBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 rounded text-blue-400 flex items-center justify-center transition";
-                fitBtn.title = "تغيير الأبعاد (قص، احتواء، تمطيط)";
-                fitBtn.innerHTML = `<i class="fa-solid ${fitIconClass}"></i>`;
-                fitBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (item.fitMode === 'cover') item.fitMode = 'contain';
-                    else if (item.fitMode === 'contain') item.fitMode = 'stretch';
-                    else item.fitMode = 'cover';
-                    
-                    if (editingIndex === index) redrawCurrentOrFirst();
-                    renderTimelineUI();
-                };
-
-                // زر التدوير (Rotate)
-                const rotateBtn = document.createElement('button');
-                rotateBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 rounded text-yellow-400 flex items-center justify-center transition";
-                rotateBtn.title = "تدوير 90 درجة";
-                rotateBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
-                rotateBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    item.rotation = ((item.rotation || 0) + 90) % 360;
-                    if (editingIndex === index) redrawCurrentOrFirst();
-                    renderTimelineUI();
-                };
-
-                // زر الحذف السريع (X)
-                const delBtn = document.createElement('button');
-                delBtn.className = "w-7 h-7 bg-red-600/80 hover:bg-red-500 rounded text-white flex items-center justify-center transition ml-1";
-                delBtn.title = "حذف";
-                delBtn.innerHTML = '<i class="fa-solid fa-xmark text-lg"></i>';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if(!timeline[index].name.includes("صفحة")) URL.revokeObjectURL(timeline[index].url); 
-                    timeline.splice(index, 1);
-                    
-                    if (editingIndex === index) {
-                        editingIndex = timeline.length > 0 ? Math.max(0, index - 1) : -1;
-                        redrawCurrentOrFirst();
-                    } else if (editingIndex > index) {
-                        editingIndex--;
-                    }
-                    
-                    if(timeline.length === 0) {
-                        ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight);
-                        emptyStateMsg.style.display = 'flex';
-                    }
-                    renderTimelineUI();
-                };
-
-                actionsDiv.appendChild(fitBtn);
-                actionsDiv.appendChild(rotateBtn);
-                actionsDiv.appendChild(delBtn);
-
-                el.appendChild(thumb); el.appendChild(iconDiv); el.appendChild(details); el.appendChild(actionsDiv);
+                el.appendChild(thumb); el.appendChild(iconDiv); el.appendChild(details); el.appendChild(editIcon);
                 timelineContainer.appendChild(el);
             });
         }
 
-        // إعدادات المقطع (Modal)
         function openClipSettings(index) {
             if (isPlaying) stopPlayback();
             editingIndex = index; const item = timeline[index];
@@ -555,10 +432,18 @@
         clipZoomInput.addEventListener('input', (e) => { if(editingIndex >= 0) { timeline[editingIndex].scale = parseFloat(e.target.value); zoomValueDisplay.textContent = Math.round(timeline[editingIndex].scale * 100) + '%'; redrawCurrentOrFirst(); } });
         clipRotateBtn.addEventListener('click', () => { if(editingIndex >= 0) { timeline[editingIndex].rotation = ((timeline[editingIndex].rotation || 0) + 90) % 360; redrawCurrentOrFirst(); } });
         clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
-        
+        deleteClipBtn.addEventListener('click', () => {
+            if(editingIndex >= 0) {
+                URL.revokeObjectURL(timeline[editingIndex].url); timeline.splice(editingIndex, 1);
+                editingIndex = timeline.length > 0 ? 0 : -1; closeSettingsModal();
+                if(timeline.length === 0) { ctx.clearRect(0,0,defaultWidth,defaultHeight); ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); emptyStateMsg.style.display = 'flex'; } 
+                else { redrawCurrentOrFirst(); }
+            }
+        });
         closeModalBtn.addEventListener('click', closeSettingsModal); saveModalBtn.addEventListener('click', closeSettingsModal);
 
-        // التشغيل والتصدير
+
+        // --- التشغيل الموثوق والنظام المقاوم للتجميد (Freeze-Protection) ---
         function playTimelineItem(item, exportMode = false) {
             return new Promise(async (resolve) => {
                 if (!isPlaying) return resolve();
@@ -566,18 +451,41 @@
                 highlightTimelineItem(editingIndex);
 
                 let startTime = performance.now();
+                let lastFrameTime = startTime;
                 const audioMode = getAudioMode();
                 
                 const checkAndDrawFrame = () => {
                     if (!isPlaying) return resolve();
-                    const elapsedSec = (performance.now() - startTime) / 1000;
+                    let now = performance.now();
                     
-                    if (elapsedSec >= item.duration) {
-                        if (item.type === 'video') item.element.pause();
-                        return resolve();
+                    if (now - lastFrameTime > 500) {
+                        startTime += (now - lastFrameTime);
+                    }
+                    lastFrameTime = now;
+
+                    let elapsedSec = (now - startTime) / 1000;
+                    activeClipElapsedSec = elapsedSec; 
+
+                    if (item.type === 'video') {
+                        const vid = item.element;
+                        if (vid.ended || vid.currentTime >= item.duration - 0.1) {
+                            vid.pause();
+                            return resolve();
+                        }
+                    } else {
+                        if (elapsedSec >= item.duration) {
+                            return resolve();
+                        }
                     }
                     
                     drawMedia(ctx, item, defaultWidth, defaultHeight);
+                    
+                    // خدعة البكسل الشفاف: تجبر بعض الهواتف على عدم إيقاف تسجيل الفيديو للصور الثابتة!
+                    if (exportMode) {
+                        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`;
+                        ctx.fillRect(0, 0, 1, 1);
+                    }
+                    
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 };
 
@@ -595,10 +503,13 @@
                                     sourceNode.connect(destStream); sourceNode.connect(audioCtx.destination); 
                                     vid._hasAudioNode = sourceNode;
                                 }
-                            } catch(e) {}
+                            } catch(e) { console.warn("Audio route err"); }
                         }
                     }
-                    try { await vid.play(); } catch(err) { return resolve(); }
+
+                    try { await vid.play(); } 
+                    catch(err) { console.error("Video skipped", err); return resolve(); } 
+                    
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 }
             });
@@ -610,10 +521,12 @@
             if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
             
             isPlaying = true; toggleButtons(true);
+            
             let totalDuration = timeline.reduce((sum, item) => sum + item.duration, 0);
-            let playbackStartTime = performance.now();
 
             if (exportMode) {
+                // إظهار نافذة التصدير مع منع النقر على باقي الشاشة دون إخفاء الكانفاس
+                clickBlocker.classList.remove('hidden');
                 processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
                 doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
                 exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
@@ -630,7 +543,7 @@
                 
                 exportMediaRecorder.ondataavailable = e => { if (e.data.size > 0) exportChunks.push(e.data); };
                 exportMediaRecorder.onstop = finalizeExport;
-                exportMediaRecorder.start(100); 
+                try { exportMediaRecorder.start(1000); } catch(err) { alert("فشل بدء التسجيل في متصفحك."); stopPlayback(); return; }
             }
 
             if (backgroundAudio) {
@@ -649,23 +562,31 @@
 
             const uiTimer = setInterval(() => {
                 if(!isPlaying) { clearInterval(uiTimer); return; }
-                let elapsedSec = (performance.now() - playbackStartTime) / 1000;
+                
+                let completedDuration = 0;
+                for(let i=0; i<editingIndex; i++) {
+                    completedDuration += timeline[i].duration;
+                }
+                let realElapsed = completedDuration + activeClipElapsedSec;
                 
                 if (exportMode) {
-                    let percent = Math.min(100, Math.floor((elapsedSec / totalDuration) * 100));
-                    exportProgressBar.style.width = percent + '%'; exportProgressText.innerText = percent + '%';
+                    let percent = Math.min(100, Math.floor((realElapsed / totalDuration) * 100));
+                    exportProgressBar.style.width = percent + '%';
+                    exportProgressText.innerText = percent + '%';
                 }
-                timeDisplay.textContent = formatTime(Math.floor(elapsedSec));
                 
-                if (elapsedSec > totalDuration + 0.5 && isExporting) { clearInterval(uiTimer); stopPlayback(); }
-            }, 100);
+                timeDisplay.textContent = formatTime(Math.floor(realElapsed));
 
+            }, 200);
+
+            // تشغيل المقاطع بالترتيب
             for (let i = 0; i < timeline.length; i++) {
                 if (!isPlaying) break;
                 await playTimelineItem(timeline[i], exportMode);
             }
 
             if (backgroundAudio) backgroundAudio.element.pause();
+            
             if (exportMode && isPlaying) {
                 if (exportMediaRecorder && exportMediaRecorder.state !== 'inactive') exportMediaRecorder.stop();
             } else { stopPlayback(); }
@@ -677,16 +598,27 @@
             if (backgroundAudio) backgroundAudio.element.pause();
             timeline.forEach(item => { if(item.type === 'video') item.element.pause(); });
             
-            if (isExporting && exportMediaRecorder && exportMediaRecorder.state !== 'inactive') exportMediaRecorder.stop(); 
-            else exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+            if (isExporting && exportMediaRecorder && exportMediaRecorder.state !== 'inactive') {
+                exportMediaRecorder.stop(); 
+            } else {
+                clickBlocker.classList.add('hidden');
+                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+            }
             
             isExporting = false; timeDisplay.textContent = "00:00";
             removeHighlight(); redrawCurrentOrFirst();
         }
 
+        let finalVideoBlob = null;
+        let finalVideoExt = '';
+
         function finalizeExport() {
             stopPlayback();
-            if (exportChunks.length === 0) { exportOverlay.classList.add('hidden'); return; }
+            if (exportChunks.length === 0) {
+                clickBlocker.classList.add('hidden');
+                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+                alert("حدث خطأ أثناء التصدير."); return;
+            }
             
             let type = exportMediaRecorder.mimeType.includes('mp4') ? 'video/mp4' : 'video/webm';
             finalVideoExt = type === 'video/mp4' ? 'mp4' : 'webm';
@@ -694,17 +626,25 @@
             
             processingUI.classList.add('hidden'); processingUI.classList.remove('flex');
             doneUI.classList.remove('hidden'); doneUI.classList.add('flex');
+            clickBlocker.classList.remove('hidden');
             exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
 
             try {
                 const file = new File([finalVideoBlob], `Video_${Date.now()}.${finalVideoExt}`, { type: type });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) finalShareBtn.classList.remove('hidden');
-            } catch (e) {}
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    finalShareBtn.classList.remove('hidden');
+                }
+            } catch (e) { console.warn("Share API error", e); }
         }
 
         function toggleButtons(playing) {
-            if (playing) { playBtn.classList.add('hidden'); stopBtn.classList.remove('hidden'); exportBtn.disabled = true; exportBtn.classList.add('opacity-50'); } 
-            else { playBtn.classList.remove('hidden'); stopBtn.classList.add('hidden'); exportBtn.disabled = false; exportBtn.classList.remove('opacity-50'); }
+            if (playing) {
+                playBtn.classList.add('hidden'); stopBtn.classList.remove('hidden');
+                exportBtn.disabled = true; exportBtn.classList.add('opacity-50');
+            } else {
+                playBtn.classList.remove('hidden'); stopBtn.classList.add('hidden');
+                exportBtn.disabled = false; exportBtn.classList.remove('opacity-50');
+            }
         }
 
         function highlightTimelineItem(index) {
@@ -719,11 +659,15 @@
 
         playBtn.addEventListener('click', () => startPlayback(false));
         stopBtn.addEventListener('click', stopPlayback);
-        exportBtn.addEventListener('click', () => { if (timeline.length === 0) return; isExporting = true; startPlayback(true); });
+        exportBtn.addEventListener('click', () => {
+            if (timeline.length === 0) { alert("أضف ملفات أولاً!"); return; }
+            isExporting = true; startPlayback(true);
+        });
 
         finalDownloadBtn.addEventListener('click', () => {
             if (!finalVideoBlob) return;
-            const url = URL.createObjectURL(finalVideoBlob); const a = document.createElement('a'); a.style.display = 'none';
+            const url = URL.createObjectURL(finalVideoBlob); 
+            const a = document.createElement('a'); a.style.display = 'none';
             a.href = url; a.download = `Edited_Video_${Date.now()}.${finalVideoExt}`; document.body.appendChild(a); a.click();
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         });
@@ -731,14 +675,22 @@
         finalShareBtn.addEventListener('click', async () => {
             if (!finalVideoBlob) return;
             const file = new File([finalVideoBlob], `Edited_Video_${Date.now()}.${finalVideoExt}`, { type: finalVideoBlob.type });
-            try { await navigator.share({ title: 'فيديو جديد', text: 'شاهد هذا الفيديو!', files: [file] }); } catch (err) { }
+            try {
+                await navigator.share({
+                    title: 'فيديو جديد',
+                    text: 'شاهد هذا الفيديو الذي قمت بصناعته!',
+                    files: [file]
+                });
+            } catch (err) { console.log("تم إلغاء المشاركة", err); }
         });
 
-        finalCloseBtn.addEventListener('click', () => { exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex'); });
+        finalCloseBtn.addEventListener('click', () => {
+            clickBlocker.classList.add('hidden');
+            exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+        });
 
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
 
     </script>
 </body>
 </html>
-```eof
