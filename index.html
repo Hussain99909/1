@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -8,6 +9,23 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <!-- Docx Preview Library (For Word) -->
+    <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/docx-preview/dist/docx-preview.min.js"></script>
+    
+    <!-- SheetJS Library (For Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- html2canvas Library (For taking screenshots of Docs & Excel) -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
         
@@ -27,44 +45,83 @@
         }
 
         input[type=range] { accent-color: #4f46e5; }
+        input[type=color] { border: none; padding: 0; background: transparent; cursor: pointer; }
+
+        .touch-scroll-container {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+            touch-action: pan-y;
+        }
+        
+        #canvasContainer { transition: aspect-ratio 0.3s ease; }
+
+        /* ستايل حاوية عرض المستندات (الوورد والاكسل) قبل تحويلها لصور */
+        #documentRenderContainer {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            background: white;
+            width: max-content;
+            min-width: 800px;
+            color: black;
+            padding: 40px;
+            direction: rtl; /* لدعم اللغة العربية في الجداول */
+        }
+
+        /* تنسيقات جداول الإكسل لتظهر بشكل احترافي */
+        #documentRenderContainer table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #documentRenderContainer th, #documentRenderContainer td {
+            border: 2px solid #cbd5e1;
+            padding: 15px;
+            text-align: center;
+            font-size: 18px;
+        }
+        #documentRenderContainer th {
+            background-color: #f1f5f9;
+            font-weight: bold;
+            font-size: 20px;
+            color: #1e293b;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col h-screen overflow-hidden relative">
+<body class="bg-gray-900 text-gray-100 flex flex-col h-[100dvh] overflow-hidden relative">
 
-    <!-- حاجز الشاشة لمنع النقر أثناء التصدير (شفاف بالكامل لكي لا يوقف المتصفح الفيديو) -->
     <div id="clickBlocker" class="fixed inset-0 z-40 hidden"></div>
+    
+    <!-- حاوية مخفية لمعالجة الوورد والاكسل -->
+    <div id="documentRenderContainer"></div>
 
-    <!-- شاشة التصدير العائمة (في المنتصف ولكن لا تغطي كامل الشاشة) -->
+    <!-- شاشة التصدير العائمة -->
     <div id="exportOverlay" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900 border-2 border-indigo-500 p-6 rounded-2xl shadow-2xl z-50 hidden flex-col items-center w-[90%] max-w-sm">
-        
-        <!-- واجهة التحميل -->
         <div id="processingUI" class="flex flex-col items-center w-full">
             <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
             <h2 class="text-xl font-bold text-white mb-4">جاري معالجة الفيديو...</h2>
-            
             <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
                 <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
             </div>
             <p id="exportProgressText" class="text-2xl font-bold text-indigo-300 mb-2 drop-shadow-md">0%</p>
-            
-            <p class="text-gray-400 text-xs text-center">يرجى إبقاء الشاشة مضاءة ومراقبة الفيديو في الخلفية حتى يكتمل.</p>
+            <p class="text-rose-400 text-[10px] font-bold text-center mt-2 bg-rose-900/30 p-2 rounded border border-rose-800">
+                <i class="fa-solid fa-triangle-exclamation"></i> تحذير: لا تقم بإغلاق الشاشة أو الخروج من المتصفح لمنع تقطيع الفيديو!
+            </p>
         </div>
-
-        <!-- واجهة الانتهاء والمشاركة -->
         <div id="doneUI" class="hidden flex-col items-center w-full">
             <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
             <h2 class="text-xl font-bold text-white mb-6">اكتمل صنع الفيديو بنجاح!</h2>
-            
             <div class="flex flex-col gap-3 w-full">
                 <button id="finalDownloadBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg">
-                    <i class="fa-solid fa-download"></i> حفظ في الهاتف
+                    <i class="fa-solid fa-floppy-disk"></i> حفظ الفيديو
                 </button>
-                
                 <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg hidden">
-                    <i class="fa-solid fa-share-nodes text-xl"></i> مشاركة وإرسال
+                    <i class="fa-solid fa-share-nodes text-xl"></i> مشاركة وإرسال الفيديو
                 </button>
             </div>
-            
             <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white underline text-sm transition">إغلاق والعودة للمحرر</button>
         </div>
     </div>
@@ -76,31 +133,39 @@
                 <i class="fa-solid fa-film"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold">محرر الفيديو الاحترافي</h1>
-                <p class="text-[10px] text-gray-400">قص، تدوير، زووم، ودمج مع الصوت</p>
+                <h1 class="text-lg font-bold text-white">محرر الفيديو الاحترافي</h1>
+                <p class="text-[10px] text-gray-400">قص، تدوير، نصوص، وورد، اكسل، دمج</p>
             </div>
         </div>
-        <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
-            <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">حفظ الفيديو</span>
-        </button>
+        
+        <div class="flex items-center gap-2">
+            <button id="clearAllBtn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg" title="مسح وتفريغ كل العناصر">
+                <i class="fa-solid fa-trash-can"></i> <span class="hidden md:inline">تفريغ</span>
+            </button>
+            
+            <button id="projectSettingsBtn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg" title="إعدادات الفيديو (الأبعاد والدقة)">
+                <i class="fa-solid fa-gear"></i> <span class="hidden md:inline">الإعدادات</span>
+            </button>
+            
+            <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
+                <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">حفظ</span>
+            </button>
+        </div>
     </header>
 
-    <main class="flex-grow flex flex-col lg:flex-row overflow-hidden">
+    <main class="flex-grow flex flex-col lg:flex-row overflow-hidden min-h-0">
         
         <!-- مساحة العرض (Canvas) -->
-        <section class="w-full h-[40vh] min-h-[250px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
-            
-            <!-- HD Canvas (16:9) -->
-            <div class="relative w-full max-w-4xl aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center">
+        <section class="w-full h-[35vh] min-h-[200px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
+            <div id="canvasContainer" class="relative w-full max-w-4xl bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center" style="aspect-ratio: 16/9; max-height: 100%;">
                 <canvas id="previewCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
                 
                 <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <i class="fa-regular fa-images text-6xl text-gray-600 mb-4"></i>
-                    <p class="text-gray-400">الشاشة فارغة، أضف صوراً أو مقاطع من القائمة</p>
+                    <p class="text-gray-400 text-center px-4">الشاشة فارغة، أضف صوراً، وورد، اكسل، أو شريحة نصية</p>
                 </div>
             </div>
 
-            <!-- أزرار التشغيل -->
             <div class="mt-4 flex items-center gap-4 bg-gray-800 p-2 rounded-full border border-gray-700 shadow-lg px-4">
                 <button id="playBtn" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 rounded-full flex items-center justify-center text-lg transition">
                     <i class="fa-solid fa-play ml-1"></i>
@@ -113,78 +178,253 @@
             </div>
         </section>
 
-        <!-- الشريط الجانبي (إضافة وسائط والشريط الزمني) -->
-        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-hidden">
-            
+        <!-- الشريط الجانبي -->
+        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-hidden min-h-0">
             <div class="p-4 border-b border-gray-700 bg-gray-800 shrink-0 z-20 shadow-md">
-                <!-- أزرار الرفع -->
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500">
-                        <i class="fa-solid fa-image text-indigo-400 text-xl"></i>
-                        <span class="text-xs font-bold text-center">أضف صورة/فيديو</span>
-                        <input type="file" id="mediaInput" accept="image/*,video/*" multiple class="hidden">
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-2 rounded-lg flex flex-col items-center gap-1 transition border border-dashed border-gray-500 relative">
+                        <div class="flex gap-1 text-sm">
+                            <i class="fa-solid fa-file-pdf text-red-400"></i>
+                            <i class="fa-solid fa-file-word text-blue-400"></i>
+                            <i class="fa-solid fa-file-excel text-green-500"></i>
+                            <i class="fa-solid fa-image text-emerald-400"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-center mt-1">صورة/PDF/وورد/اكسل/فيديو</span>
+                        <!-- إضافة صيغ الاكسل -->
+                        <input type="file" id="mediaInput" accept="image/*,video/*,application/pdf,.docx,.doc,.xlsx,.xls" multiple class="hidden">
+                        
+                        <!-- مؤشر تحميل المستندات (وورد واكسل) -->
+                        <div id="docLoadingIndicator" class="absolute inset-0 bg-gray-800/90 rounded-lg hidden flex-col items-center justify-center">
+                            <i class="fa-solid fa-spinner fa-spin text-blue-400 text-lg"></i>
+                            <span class="text-[8px] mt-1 text-gray-300 font-bold">جاري المعالجة...</span>
+                        </div>
                     </label>
                     
-                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
-                        <i class="fa-solid fa-music text-pink-400 text-xl"></i>
-                        <span class="text-xs font-bold text-center w-full truncate px-2">موسيقى خارجية</span>
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-2 rounded-lg flex flex-col items-center justify-center gap-1 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
+                        <i class="fa-solid fa-music text-pink-400 text-lg"></i>
+                        <span class="text-[10px] font-bold text-center w-full truncate px-1">موسيقى خارجية</span>
                         <input type="file" id="audioInput" accept="audio/*" class="hidden">
-                        <button id="removeAudioBtn" class="absolute -top-2 -right-2 bg-red-500 w-6 h-6 rounded-full hidden items-center justify-center text-xs shadow-lg hover:bg-red-600">
+                        <button id="removeAudioBtn" class="absolute -top-2 -right-2 bg-red-500 w-5 h-5 rounded-full hidden items-center justify-center text-[10px] shadow-lg hover:bg-red-600">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </label>
                 </div>
+                
+                <button id="addTextSlideBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 mb-3 rounded-lg text-sm font-bold transition flex justify-center items-center gap-2 shadow">
+                    <i class="fa-solid fa-square-plus"></i> إضافة شريحة فارغة / نص
+                </button>
 
-                <!-- إعدادات الصوت العامة -->
                 <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> دمج الصوت للفيديو النهائي</h4>
-                    <div class="flex items-center w-full text-xs">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> دمج الصوت</h4>
+                    <div class="flex items-center w-full text-[11px]">
                         <input type="radio" name="audioMode" id="modeMusicOnly" value="musicOnly" class="hidden custom-radio" checked>
-                        <label for="modeMusicOnly" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
+                        <label for="modeMusicOnly" class="flex-1 text-center py-1.5 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
                             الموسيقى فقط
                         </label>
                         <input type="radio" name="audioMode" id="modeMix" value="mix" class="hidden custom-radio">
-                        <label for="modeMix" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
-                            دمج الفيديوهات والموسيقى
+                        <label for="modeMix" class="flex-1 text-center py-1.5 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            فيديو وموسيقى
                         </label>
                     </div>
                 </div>
             </div>
-
-            <!-- الشريط الزمني (Timeline) -->
-            <div class="flex-grow p-4 flex flex-col gap-2 overflow-y-auto" id="timelineContainer">
+            <div class="flex-grow p-4 pb-24 flex flex-col gap-2 overflow-y-auto touch-scroll-container min-h-0" id="timelineContainer">
                 <div class="text-center text-gray-500 text-sm mt-8" id="emptyTimelineMsg">
                     <i class="fa-solid fa-arrow-up block text-2xl mb-2 opacity-50"></i>
                     أضف ملفات وابدأ المونتاج
                 </div>
             </div>
-
         </section>
     </main>
 
-    <!-- نافذة تعديل المقطع المنبثقة (Modal) -->
+    <!-- النوافذ المنبثقة المتعددة -->
+
+    <!-- إعدادات المشروع -->
+    <div id="projectSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-gear ml-2 text-indigo-400"></i> إعدادات المشروع</h3>
+                <button onclick="closeModal('projectSettingsModal')" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 flex flex-col gap-4 overflow-y-auto max-h-[70vh] touch-scroll-container">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">أبعاد الفيديو (Aspect Ratio):</label>
+                    <select id="aspectRatioSelect" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm cursor-pointer">
+                        <option value="16:9">16:9 (يوتيوب وشاشات العرض)</option>
+                        <option value="9:16">9:16 (تيك توك، ريلز، شورتس)</option>
+                        <option value="1:1">1:1 (انستغرام مربع)</option>
+                        <option value="4:3">4:3 (الشاشات الكلاسيكية)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">دقة التصدير (Resolution):</label>
+                    <select id="resolutionSelect" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm cursor-pointer">
+                        <option value="1080">1080p (عالية الدقة FHD)</option>
+                        <option value="720" selected>720p (قياسية HD)</option>
+                        <option value="480">480p (اقتصادية SD)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">معدل الإطارات (FPS):</label>
+                    <select id="fpsSelect" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm cursor-pointer">
+                        <option value="60" selected>60 إطار/ث (سلس جداً - حركة وألعاب)</option>
+                        <option value="30">30 إطار/ث (قياسي - يوتيوب وتلفاز)</option>
+                        <option value="24">24 إطار/ث (سينمائي - طابع الأفلام)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">ترميز التصدير (Codec):</label>
+                    <select id="codecSelect" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm cursor-pointer">
+                        <option value="auto">تلقائي (أفضل خيار يدعمه متصفحك)</option>
+                        <option value="h264">H.264 (سريع ومتوافق مع جميع الأجهزة)</option>
+                        <option value="vp9">VP9 (جودة عالية وحجم أصغر - للويب)</option>
+                        <option value="vp8">VP8 (قياسي ومستقر)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">إطار الشاشة (Frame):</label>
+                    <select id="frameSelect" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm cursor-pointer">
+                        <option value="none">بدون إطار (افتراضي)</option>
+                        <option value="cinematic">سينمائي (حواف سوداء)</option>
+                        <option value="polaroid">بولارويد (إطار أبيض كلاسيكي)</option>
+                        <option value="neon">نيون (بنفسجي مضيء)</option>
+                        <option value="golden">ذهبي (إطار فاخر)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
+                <button id="applyProjectSettingsBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-check"></i> تطبيق وموافق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة إعدادات النص والشريحة الفارغة -->
+    <div id="textSlideModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-font ml-2 text-indigo-400"></i> إعدادات النص والشريحة</h3>
+                <button onclick="closeModal('textSlideModal')" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 flex flex-col gap-4 overflow-y-auto max-h-[70vh] touch-scroll-container">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">النص (اتركه فارغاً لشريحة ملونة فقط):</label>
+                    <textarea id="slideTextInput" rows="4" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="اكتب النص هنا..."></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2">لون الخلفية:</label>
+                        <div class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                            <input type="color" id="slideBgColorInput" class="w-8 h-8 rounded cursor-pointer">
+                            <span class="text-xs text-gray-300" id="bgHexDisplay">#374151</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2">لون النص:</label>
+                        <div class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                            <input type="color" id="slideTextColorInput" class="w-8 h-8 rounded cursor-pointer">
+                            <span class="text-xs text-gray-300" id="textHexDisplay">#ffffff</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">محاذاة ومكان النص:</label>
+                    <div class="flex items-center w-full text-xs">
+                        <input type="radio" name="textAlign" id="alignRight" value="right" class="hidden custom-radio">
+                        <label for="alignRight" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800"><i class="fa-solid fa-align-right"></i> يمين</label>
+                        
+                        <input type="radio" name="textAlign" id="alignCenter" value="center" class="hidden custom-radio" checked>
+                        <label for="alignCenter" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800"><i class="fa-solid fa-align-center"></i> وسط</label>
+                        
+                        <input type="radio" name="textAlign" id="alignLeft" value="left" class="hidden custom-radio">
+                        <label for="alignLeft" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800"><i class="fa-solid fa-align-left"></i> يسار</label>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-gray-400 mb-2">
+                        <label>حجم الخط:</label>
+                        <span id="fontSizeDisplay">60px</span>
+                    </div>
+                    <input type="range" id="slideFontSizeInput" min="20" max="200" step="5" value="60" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+            <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
+                <button onclick="applyTextSlideSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-check"></i> حفظ الإعدادات
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة مدة العرض السريعة -->
+    <div id="durationModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-xs overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-stopwatch ml-2 text-cyan-400"></i> وقت العرض</h3>
+                <button onclick="closeModal('durationModal')" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5">
+                <label class="block text-xs font-bold text-gray-400 mb-2">مدة الظهور (بالثواني):</label>
+                <input type="number" id="quickDurationInput" min="0.5" max="300" step="0.5" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 text-center text-lg font-bold outline-none focus:ring-2 focus:ring-cyan-500">
+            </div>
+            <div class="bg-gray-900 p-4 border-t border-gray-700">
+                <button onclick="applyDuration()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-bold transition flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-check"></i> حفظ المدة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الانتقالات -->
+    <div id="transitionModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-wand-magic-sparkles ml-2 text-purple-400"></i> تأثير الانتقال</h3>
+                <button onclick="closeModal('transitionModal')" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 grid grid-cols-2 gap-3">
+                <button onclick="applyTransition('none')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-ban text-gray-400 text-xl"></i> بدون (Cut)
+                </button>
+                <button onclick="applyTransition('fade')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-droplet text-blue-400 text-xl"></i> تلاشي (Fade)
+                </button>
+                <button onclick="applyTransition('push')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-arrow-right-to-bracket text-emerald-400 text-xl"></i> دفع (Push)
+                </button>
+                <button onclick="applyTransition('fly_in')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-plane-up text-amber-400 text-xl"></i> طيران (Fly In)
+                </button>
+                <button onclick="applyTransition('split')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-arrows-left-right-to-line text-rose-400 text-xl"></i> انقسام (Split)
+                </button>
+                <button onclick="applyTransition('reveal')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-3 rounded-lg text-sm font-bold transition flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-circle-dot text-indigo-400 text-xl"></i> ظهور (Reveal)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة التقريب والمط للميديا -->
     <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
             <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
-                <h3 class="font-bold text-lg"><i class="fa-solid fa-sliders ml-2 text-indigo-400"></i> إعدادات المقطع</h3>
-                <button id="closeModalBtn" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-magnifying-glass ml-2 text-indigo-400"></i> إعدادات الصورة/الفيديو</h3>
+                <button onclick="closeModal('clipSettingsModal')" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
             </div>
             <div class="p-5 flex flex-col gap-5">
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 mb-2">طريقة العرض (قص الزوائد):</label>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">طريقة العرض:</label>
                     <div class="flex items-center w-full text-xs">
                         <input type="radio" name="clipFitMode" id="clipCover" value="cover" class="hidden custom-radio">
-                        <label for="clipCover" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
-                            قص (Cover)
-                        </label>
+                        <label for="clipCover" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">تغطية</label>
+                        
                         <input type="radio" name="clipFitMode" id="clipContain" value="contain" class="hidden custom-radio">
-                        <label for="clipContain" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800">
-                            احتواء كامل
-                        </label>
+                        <label for="clipContain" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800">احتواء</label>
+                        
                         <input type="radio" name="clipFitMode" id="clipStretch" value="stretch" class="hidden custom-radio">
-                        <label for="clipStretch" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
-                            تمطيط
-                        </label>
+                        <label for="clipStretch" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">تمطيط</label>
                     </div>
                 </div>
                 <div>
@@ -198,29 +438,27 @@
                         <i class="fa-solid fa-magnifying-glass-plus text-gray-500"></i>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 mb-2">التدوير (Rotate):</label>
-                    <button id="clipRotateBtn" class="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-rotate-right"></i> تدوير 90 درجة
-                    </button>
-                </div>
-                <div id="durationControlGroup">
-                    <label class="block text-xs font-bold text-gray-400 mb-2">مدة الظهور (ثواني):</label>
-                    <input type="number" id="clipDurationInput" min="1" max="60" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2 text-center">
-                </div>
             </div>
-            <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
-                <button id="saveModalBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition">تم التعديل</button>
-                <button id="deleteClipBtn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold transition"><i class="fa-solid fa-trash"></i></button>
+            <div class="bg-gray-900 p-4 border-t border-gray-700">
+                <button onclick="closeModal('clipSettingsModal')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-check"></i> موافق
+                </button>
             </div>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('previewCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
         const ctx = canvas.getContext('2d');
-        const defaultWidth = canvas.width;  // 1280
-        const defaultHeight = canvas.height; // 720
+        
+        let defaultWidth = 1280;
+        let defaultHeight = 720;
+        let projectAspectRatio = '16:9';
+        let projectResolution = 720; 
+        let projectFrame = 'none'; 
+        let projectFPS = 60; 
+        let projectCodec = 'auto';
 
         let timeline = []; 
         let backgroundAudio = null; 
@@ -234,9 +472,8 @@
 
         let audioCtx;
         let destStream;
-        let silentOsc; // موجة صامتة لضمان استمرار الصوت
+        let silentOsc; 
 
-        // UI Elements
         const mediaInput = document.getElementById('mediaInput');
         const audioInput = document.getElementById('audioInput');
         const timelineContainer = document.getElementById('timelineContainer');
@@ -246,29 +483,139 @@
         const stopBtn = document.getElementById('stopBtn');
         const timeDisplay = document.getElementById('timeDisplay');
         const exportBtn = document.getElementById('exportBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const docLoadingIndicator = document.getElementById('docLoadingIndicator');
         
-        // Modal & Overlay Elements
-        const clickBlocker = document.getElementById('clickBlocker');
-        const exportOverlay = document.getElementById('exportOverlay');
-        const processingUI = document.getElementById('processingUI');
-        const doneUI = document.getElementById('doneUI');
-        const exportProgressBar = document.getElementById('exportProgressBar');
-        const exportProgressText = document.getElementById('exportProgressText');
-        const finalDownloadBtn = document.getElementById('finalDownloadBtn');
-        const finalShareBtn = document.getElementById('finalShareBtn');
-        const finalCloseBtn = document.getElementById('finalCloseBtn');
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById(id).classList.add('flex');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
+            renderTimelineUI();
+        }
 
-        // Clip Settings Modal Elements
-        const modal = document.getElementById('clipSettingsModal');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        const saveModalBtn = document.getElementById('saveModalBtn');
-        const deleteClipBtn = document.getElementById('deleteClipBtn');
-        const clipFitRadios = document.getElementsByName('clipFitMode');
-        const clipZoomInput = document.getElementById('clipZoomInput');
-        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
-        const clipRotateBtn = document.getElementById('clipRotateBtn');
-        const clipDurationInput = document.getElementById('clipDurationInput');
-        const durationControlGroup = document.getElementById('durationControlGroup');
+        // مسح كل العناصر (Clear All)
+        clearAllBtn.addEventListener('click', () => {
+            if (timeline.length === 0) return;
+            
+            if (confirm("هل أنت متأكد من رغبتك في مسح جميع العناصر والبدء من جديد؟")) {
+                if (isPlaying) stopPlayback();
+                
+                timeline.forEach(item => {
+                    if (item.url && !item.url.startsWith('data:')) {
+                        URL.revokeObjectURL(item.url);
+                    }
+                });
+                
+                timeline = [];
+                editingIndex = -1;
+                
+                ctx.clearRect(0, 0, defaultWidth, defaultHeight);
+                ctx.fillStyle = '#000'; 
+                ctx.fillRect(0, 0, defaultWidth, defaultHeight);
+                
+                drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+                document.getElementById('emptyStateMsg').style.display = 'flex';
+                
+                renderTimelineUI();
+            }
+        });
+
+        // Project Settings logic
+        document.getElementById('projectSettingsBtn').addEventListener('click', () => {
+            document.getElementById('aspectRatioSelect').value = projectAspectRatio;
+            document.getElementById('resolutionSelect').value = projectResolution;
+            document.getElementById('frameSelect').value = projectFrame;
+            document.getElementById('fpsSelect').value = projectFPS;
+            document.getElementById('codecSelect').value = projectCodec;
+            openModal('projectSettingsModal');
+        });
+        
+        document.getElementById('applyProjectSettingsBtn').addEventListener('click', () => {
+            projectAspectRatio = document.getElementById('aspectRatioSelect').value;
+            projectResolution = parseInt(document.getElementById('resolutionSelect').value);
+            projectFrame = document.getElementById('frameSelect').value;
+            projectFPS = parseInt(document.getElementById('fpsSelect').value);
+            projectCodec = document.getElementById('codecSelect').value;
+            
+            let ratioParts = projectAspectRatio.split(':');
+            let wRatio = parseInt(ratioParts[0]);
+            let hRatio = parseInt(ratioParts[1]);
+
+            if (wRatio >= hRatio) {
+                defaultHeight = projectResolution;
+                defaultWidth = Math.round(defaultHeight * (wRatio / hRatio));
+            } else {
+                defaultWidth = projectResolution;
+                defaultHeight = Math.round(defaultWidth * (hRatio / wRatio));
+            }
+
+            canvas.width = defaultWidth;
+            canvas.height = defaultHeight;
+            canvasContainer.style.aspectRatio = projectAspectRatio.replace(':', '/');
+            
+            redrawCurrentOrFirst();
+            closeModal('projectSettingsModal');
+        });
+
+        // Text Slide Logic
+        document.getElementById('slideBgColorInput').addEventListener('input', e => { document.getElementById('bgHexDisplay').innerText = e.target.value; });
+        document.getElementById('slideTextColorInput').addEventListener('input', e => { document.getElementById('textHexDisplay').innerText = e.target.value; });
+        document.getElementById('slideFontSizeInput').addEventListener('input', e => { document.getElementById('fontSizeDisplay').innerText = e.target.value + 'px'; });
+
+        document.getElementById('addTextSlideBtn').addEventListener('click', () => {
+            if (isPlaying) stopPlayback();
+            const newTextSlide = {
+                id: Date.now().toString(),
+                type: 'textSlide',
+                name: 'شريحة نصية',
+                duration: 4,
+                text: 'اكتب نصك هنا...',
+                bgColor: '#374151',
+                textColor: '#ffffff',
+                textAlign: 'center',
+                fontSize: 60,
+                transitionType: 'fade'
+            };
+            timeline.push(newTextSlide);
+            editingIndex = timeline.length - 1;
+            openTextSlideEditor(editingIndex);
+        });
+
+        function openTextSlideEditor(index) {
+            editingIndex = index;
+            const item = timeline[index];
+            document.getElementById('slideTextInput').value = item.text || '';
+            document.getElementById('slideBgColorInput').value = item.bgColor || '#374151';
+            document.getElementById('bgHexDisplay').innerText = item.bgColor || '#374151';
+            document.getElementById('slideTextColorInput').value = item.textColor || '#ffffff';
+            document.getElementById('textHexDisplay').innerText = item.textColor || '#ffffff';
+            document.getElementsByName('textAlign').forEach(r => r.checked = (r.value === (item.textAlign || 'center')));
+            document.getElementById('slideFontSizeInput').value = item.fontSize || 60;
+            document.getElementById('fontSizeDisplay').innerText = (item.fontSize || 60) + 'px';
+            openModal('textSlideModal');
+        }
+
+        function applyTextSlideSettings() {
+            if (editingIndex >= 0 && timeline[editingIndex].type === 'textSlide') {
+                const item = timeline[editingIndex];
+                item.text = document.getElementById('slideTextInput').value;
+                item.bgColor = document.getElementById('slideBgColorInput').value;
+                item.textColor = document.getElementById('slideTextColorInput').value;
+                item.textAlign = document.querySelector('input[name="textAlign"]:checked').value;
+                item.fontSize = parseInt(document.getElementById('slideFontSizeInput').value);
+                
+                if(item.text.trim().length > 0) {
+                    item.name = item.text.split('\n')[0].substring(0, 15) + '...';
+                } else {
+                    item.name = 'شريحة فارغة';
+                }
+                redrawCurrentOrFirst();
+                closeModal('textSlideModal');
+            }
+        }
 
         function getAudioMode() { return document.querySelector('input[name="audioMode"]:checked').value; }
         function formatTime(seconds) {
@@ -277,87 +624,351 @@
             return `${m}:${s}`;
         }
 
-        // رسم الميديا على الكانفاس
-        function drawMedia(ctx, item, cw, ch) {
+        function wrapTextAndDraw(ctx, text, x, y, maxWidth, lineHeight, align) {
+            const lines = text.split('\n');
+            let totalHeight = 0;
+            let drawOperations = [];
+
+            lines.forEach(paragraph => {
+                let words = paragraph.split(' ');
+                let line = '';
+                for(let n = 0; n < words.length; n++) {
+                    let testLine = line + words[n] + ' ';
+                    let metrics = ctx.measureText(testLine);
+                    if (metrics.width > maxWidth && n > 0) {
+                        drawOperations.push({text: line, yOffset: totalHeight});
+                        line = words[n] + ' ';
+                        totalHeight += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                drawOperations.push({text: line, yOffset: totalHeight});
+                totalHeight += lineHeight;
+            });
+
+            let startY = y - (totalHeight / 2) + (lineHeight / 2);
+            drawOperations.forEach(op => {
+                ctx.fillText(op.text, x, startY + op.yOffset);
+            });
+        }
+
+        function drawFrame(ctx, cw, ch, type) {
+            if (type === 'none') return;
+            ctx.save();
+            if (type === 'cinematic') {
+                ctx.fillStyle = '#000000';
+                let bar = ch * 0.12; 
+                ctx.fillRect(0, 0, cw, bar);
+                ctx.fillRect(0, ch - bar, cw, bar);
+            } 
+            else if (type === 'polaroid') {
+                ctx.fillStyle = '#ffffff';
+                let border = Math.min(cw, ch) * 0.05;
+                ctx.fillRect(0, 0, cw, border);
+                ctx.fillRect(0, 0, border, ch);
+                ctx.fillRect(cw - border, 0, border, ch);
+                ctx.fillRect(0, ch - border * 3.5, cw, border * 3.5);
+            }
+            else if (type === 'neon') {
+                let lw = Math.max(5, Math.min(cw, ch) * 0.015);
+                ctx.strokeStyle = '#bc13fe'; 
+                ctx.lineWidth = lw;
+                ctx.shadowBlur = lw * 3;
+                ctx.shadowColor = '#bc13fe';
+                ctx.strokeRect(lw, lw, cw - lw * 2, ch - lw * 2);
+                ctx.shadowBlur = 0; 
+            }
+            else if (type === 'golden') {
+                let lw = Math.max(10, Math.min(cw, ch) * 0.03);
+                let gradient = ctx.createLinearGradient(0, 0, cw, ch);
+                gradient.addColorStop(0, '#BF953F');
+                gradient.addColorStop(0.25, '#FCF6BA');
+                gradient.addColorStop(0.5, '#B38728');
+                gradient.addColorStop(0.75, '#FBF5B7');
+                gradient.addColorStop(1, '#AA771C');
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = lw;
+                ctx.strokeRect(lw/2, lw/2, cw - lw, ch - lw);
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = lw * 0.1;
+                ctx.strokeRect(lw + 5, lw + 5, cw - (lw*2 + 10), ch - (lw*2 + 10));
+            }
+            ctx.restore();
+        }
+
+        function drawMedia(ctx, item, cw, ch, transitionProgress = 1) {
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, cw, ch);
-            
-            const img = item.element;
-            const rot = item.rotation || 0;
-            const scale = item.scale || 1.0;
-            const mode = item.fitMode || 'stretch'; // الوضع التلقائي تمطيط
-
-            let iw = img.videoWidth || img.width;
-            let ih = img.videoHeight || img.height;
-            if (!iw || !ih) return;
-
-            let calcW = iw; let calcH = ih;
-            if (rot === 90 || rot === 270) { calcW = ih; calcH = iw; }
-
-            let drawW, drawH;
-            if (mode === 'stretch') {
-                if (rot === 90 || rot === 270) { drawW = ch; drawH = cw; } 
-                else { drawW = cw; drawH = ch; }
-            } else {
-                const hRatio = cw / calcW; const vRatio = ch / calcH;
-                const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
-                drawW = iw * ratio; drawH = ih * ratio;
-            }
-
-            drawW *= scale; drawH *= scale;
+            const trans = item.transitionType || 'none';
 
             ctx.save();
             ctx.translate(cw / 2, ch / 2);
-            ctx.rotate(rot * Math.PI / 180);
-            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+            if (transitionProgress < 1) {
+                let t = transitionProgress;
+                if (trans === 'fade') {
+                    ctx.globalAlpha = t;
+                } else if (trans === 'push') {
+                    ctx.translate(cw * (1 - t), 0);
+                } else if (trans === 'fly_in') {
+                    ctx.scale(t, t);
+                    ctx.translate(0, ch * (1 - t));
+                } else if (trans === 'split') {
+                    ctx.beginPath();
+                    ctx.rect(-cw/2, -ch/2 * t, cw, ch * t);
+                    ctx.clip();
+                } else if (trans === 'reveal') {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, Math.max(cw, ch) * t, 0, Math.PI * 2);
+                    ctx.clip();
+                }
+            }
+
+            if (item.type === 'textSlide') {
+                ctx.fillStyle = item.bgColor || '#374151';
+                ctx.fillRect(-cw/2, -ch/2, cw, ch);
+
+                if (item.text && item.text.trim().length > 0) {
+                    ctx.fillStyle = item.textColor || '#ffffff';
+                    ctx.font = `bold ${item.fontSize || 60}px system-ui, -apple-system, sans-serif`;
+                    ctx.textBaseline = 'middle';
+                    
+                    let align = item.textAlign || 'center';
+                    ctx.textAlign = align;
+
+                    let startX = 0;
+                    let maxWidth = cw - 80;
+                    if (align === 'right') { startX = (cw / 2) - 40; }
+                    else if (align === 'left') { startX = -(cw / 2) + 40; }
+
+                    wrapTextAndDraw(ctx, item.text, startX, 0, maxWidth, (item.fontSize || 60) * 1.5, align);
+                }
+            } else {
+                const img = item.element;
+                const rot = item.rotation || 0;
+                const scale = item.scale || 1.0;
+                const mode = item.fitMode || 'stretch'; 
+
+                let iw = img.videoWidth || img.width;
+                let ih = img.videoHeight || img.height;
+                
+                if (iw && ih) {
+                    let calcW = iw; let calcH = ih;
+                    if (rot === 90 || rot === 270) { calcW = ih; calcH = iw; }
+
+                    let drawW, drawH;
+                    if (mode === 'stretch') {
+                        if (rot === 90 || rot === 270) { drawW = ch; drawH = cw; } 
+                        else { drawW = cw; drawH = ch; }
+                    } else {
+                        const hRatio = cw / calcW; const vRatio = ch / calcH;
+                        const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
+                        drawW = iw * ratio; drawH = ih * ratio;
+                    }
+
+                    drawW *= scale; drawH *= scale;
+
+                    ctx.rotate(rot * Math.PI / 180);
+                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+                }
+            }
+
             ctx.restore();
         }
 
         function redrawCurrentOrFirst() {
-            if (isPlaying || timeline.length === 0) return;
+            if (isPlaying || timeline.length === 0) {
+                if (timeline.length === 0) {
+                    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
+                    drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+                }
+                return;
+            }
             const idx = editingIndex >= 0 ? editingIndex : 0;
-            drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight);
+            drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight, 1);
+            drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
         }
 
-        // نظام الصوت الذكي (يمنع الهاتف من إيقاف التسجيل)
         function initAudioSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 destStream = audioCtx.createMediaStreamDestination();
-                
-                // الموجة الصامتة: تمنع مسجل الفيديو من التجمد إذا لم يكن هناك صوت
                 silentOsc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0; // صامت
+                gain.gain.value = 0; 
                 silentOsc.connect(gain);
                 gain.connect(destStream);
                 silentOsc.start();
             }
         }
 
-        // رفع الملفات
+        // --- دالة معالجة ملفات الوورد (DOCX) ---
+        async function processWordToImages(file) {
+            const defaultSettings = { rotation: 0, scale: 1, fitMode: 'contain', transitionType: 'fade' };
+            const renderContainer = document.getElementById('documentRenderContainer');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                renderContainer.innerHTML = ''; // تنظيف
+                
+                await docx.renderAsync(arrayBuffer, renderContainer, null, {
+                    className: "docx-rendered-page",
+                    inWrapper: false,
+                    ignoreWidth: false,
+                    ignoreHeight: false,
+                });
+
+                const pages = renderContainer.querySelectorAll('.docx-rendered-page');
+                
+                if (pages.length === 0) {
+                    const canvas = await html2canvas(renderContainer, { scale: 2 });
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const img = new Image(); img.src = dataUrl;
+                    await new Promise(r => img.onload = r);
+                    
+                    timeline.push({ 
+                        id: Date.now() + Math.random().toString(), type: 'image', 
+                        name: `${file.name.replace(/\.[^/.]+$/, "")} (صورة)`, element: img, 
+                        duration: 5, url: dataUrl, ...defaultSettings
+                    });
+                } else {
+                    for (let i = 0; i < pages.length; i++) {
+                        const pageElement = pages[i];
+                        const canvas = await html2canvas(pageElement, { scale: 2 });
+                        const dataUrl = canvas.toDataURL('image/png');
+                        
+                        const img = new Image(); img.src = dataUrl;
+                        await new Promise(r => img.onload = r);
+                        
+                        timeline.push({ 
+                            id: Date.now() + Math.random().toString(), type: 'image', 
+                            name: `${file.name.replace(/\.[^/.]+$/, "")} (ص${i+1})`, element: img, 
+                            duration: 5, url: dataUrl, ...defaultSettings
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Word conversion error:", err);
+                alert("حدث خطأ أثناء محاولة تحويل ملف الوورد إلى صور.");
+            } finally {
+                renderContainer.innerHTML = '';
+            }
+        }
+
+        // --- دالة معالجة ملفات الإكسل (XLSX / XLS) ---
+        async function processExcelToImage(file) {
+            const defaultSettings = { rotation: 0, scale: 1, fitMode: 'contain', transitionType: 'fade' };
+            const renderContainer = document.getElementById('documentRenderContainer');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const htmlString = XLSX.utils.sheet_to_html(worksheet, { id: "excelTable", editable: false });
+                
+                if (!htmlString || htmlString.indexOf('<table') === -1) {
+                    alert("الملف لا يحتوي على جدول بيانات صالح.");
+                    return;
+                }
+
+                renderContainer.innerHTML = htmlString;
+                
+                // التقاط صورة للجدول
+                const canvas = await html2canvas(renderContainer, { scale: 2, useCORS: true });
+                const dataUrl = canvas.toDataURL('image/png');
+                
+                const img = new Image(); img.src = dataUrl;
+                await new Promise(r => img.onload = r);
+                
+                timeline.push({ 
+                    id: Date.now() + Math.random().toString(), type: 'image', 
+                    name: `${file.name.replace(/\.[^/.]+$/, "")} (جدول)`, element: img, 
+                    duration: 5, url: dataUrl, ...defaultSettings
+                });
+                
+            } catch (err) {
+                console.error("Excel conversion error:", err);
+                alert("حدث خطأ أثناء محاولة تحويل ملف الاكسل إلى صورة.");
+            } finally {
+                renderContainer.innerHTML = '';
+            }
+        }
+
         mediaInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-            emptyStateMsg.style.display = 'none';
+            document.getElementById('emptyStateMsg').style.display = 'none';
+            mediaInput.disabled = true;
+            
+            const hasDocOrExcel = files.some(f => f.name.endsWith('.docx') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+            if (hasDocOrExcel) {
+                docLoadingIndicator.style.display = 'flex';
+            }
 
             for (let file of files) {
-                const url = URL.createObjectURL(file);
-                const id = Date.now() + Math.random().toString();
-                const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch' };
+                const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch', transitionType: 'fade' };
                 
-                if (file.type.startsWith('image/')) {
-                    const img = new Image(); img.src = url;
-                    await new Promise(r => img.onload = r);
-                    timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
-                } else if (file.type.startsWith('video/')) {
-                    const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
-                    await new Promise(r => vid.onloadedmetadata = r);
-                    timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
+                if (file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
+                    alert(`الملف "${file.name}" بصيغة .doc القديمة غير مدعوم للتحويل داخل المتصفح مباشرة.\n\n💡 نصيحة: قم بحفظ الملف بصيغة PDF من برنامج الوورد، ثم ارفعه هنا.`);
+                    continue; 
+                }
+
+                if (file.type === 'application/pdf') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: 2.0 }); 
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = viewport.width; tempCanvas.height = viewport.height;
+                        await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: viewport }).promise;
+
+                        const dataUrl = tempCanvas.toDataURL('image/png');
+                        const img = new Image(); img.src = dataUrl;
+                        await new Promise(r => img.onload = r);
+
+                        timeline.push({ 
+                            id: Date.now() + Math.random().toString(), type: 'image', 
+                            name: `${file.name.replace('.pdf','')} (ص${i})`, element: img, 
+                            duration: 4, url: dataUrl, ...defaultSettings
+                        });
+                    }
+                } 
+                else if (file.name.endsWith('.docx')) {
+                    await processWordToImages(file);
+                }
+                else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    await processExcelToImage(file);
+                }
+                else {
+                    const url = URL.createObjectURL(file);
+                    const id = Date.now() + Math.random().toString();
+                    if (file.type.startsWith('image/')) {
+                        const img = new Image(); img.src = url;
+                        await new Promise(r => img.onload = r);
+                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
+                    } else if (file.type.startsWith('video/')) {
+                        const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
+                        await new Promise(r => vid.onloadedmetadata = r);
+                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
+                    }
                 }
             }
+            
+            mediaInput.disabled = false;
+            if (hasDocOrExcel) {
+                docLoadingIndicator.style.display = 'none';
+            }
+            
+            editingIndex = timeline.length - 1;
             renderTimelineUI();
-            if (!isPlaying) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
+            if (!isPlaying) { redrawCurrentOrFirst(); }
+            
+            setTimeout(() => { timelineContainer.scrollTop = timelineContainer.scrollHeight; }, 100);
             mediaInput.value = '';
         });
 
@@ -381,69 +992,209 @@
             document.getElementById('removeAudioBtn').classList.add('hidden'); document.getElementById('removeAudioBtn').classList.remove('flex');
         });
 
-        // الشريط الزمني
+        function openDurationModal(index) {
+            editingIndex = index;
+            document.getElementById('quickDurationInput').value = timeline[index].duration;
+            openModal('durationModal');
+        }
+
+        function applyDuration() {
+            let val = parseFloat(document.getElementById('quickDurationInput').value);
+            if (val > 0 && editingIndex >= 0) {
+                timeline[editingIndex].duration = val;
+                closeModal('durationModal');
+            }
+        }
+
+        function openTransitionModal(index) {
+            editingIndex = index; openModal('transitionModal');
+        }
+
+        function applyTransition(type) {
+            if (editingIndex >= 0) {
+                timeline[editingIndex].transitionType = type;
+                closeModal('transitionModal');
+            }
+        }
+
+        function openZoomModal(index) {
+            editingIndex = index;
+            const clipFitRadios = document.getElementsByName('clipFitMode');
+            clipFitRadios.forEach(r => r.checked = (r.value === (timeline[index].fitMode || 'stretch')));
+            document.getElementById('clipZoomInput').value = timeline[index].scale;
+            document.getElementById('zoomValueDisplay').textContent = Math.round(timeline[index].scale * 100) + '%';
+            openModal('clipSettingsModal');
+        }
+
+        document.getElementsByName('clipFitMode').forEach(radio => { 
+            radio.addEventListener('change', (e) => { 
+                if(editingIndex >= 0 && timeline[editingIndex].type !== 'textSlide') { 
+                    timeline[editingIndex].fitMode = e.target.value; redrawCurrentOrFirst(); 
+                } 
+            }); 
+        });
+
+        document.getElementById('clipZoomInput').addEventListener('input', (e) => { 
+            if(editingIndex >= 0 && timeline[editingIndex].type !== 'textSlide') { 
+                timeline[editingIndex].scale = parseFloat(e.target.value); 
+                document.getElementById('zoomValueDisplay').textContent = Math.round(timeline[editingIndex].scale * 100) + '%'; 
+                redrawCurrentOrFirst(); 
+            } 
+        });
+
         function renderTimelineUI() {
             timelineContainer.innerHTML = '';
             if (timeline.length === 0) {
                 timelineContainer.appendChild(emptyTimelineMsg);
                 emptyTimelineMsg.style.display = 'block'; emptyStateMsg.style.display = 'flex';
-                ctx.clearRect(0,0, defaultWidth, defaultHeight); return;
+                ctx.clearRect(0,0, defaultWidth, defaultHeight);
+                drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+                return;
             }
             emptyTimelineMsg.style.display = 'none';
 
             timeline.forEach((item, index) => {
+                const isActive = editingIndex === index;
                 const el = document.createElement('div');
-                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-3 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
-                el.onclick = () => openClipSettings(index);
+                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex flex-col sm:flex-row items-center gap-2 relative overflow-hidden group ${isActive ? 'active ring-2 ring-indigo-500' : ''}`;
                 
-                const iconHTML = item.type === 'video' ? '<i class="fa-solid fa-video text-blue-400"></i>' : '<i class="fa-solid fa-image text-emerald-400"></i>';
+                el.onclick = () => {
+                    if (isPlaying) stopPlayback();
+                    editingIndex = index;
+                    redrawCurrentOrFirst();
+                    renderTimelineUI();
+                    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                };
+                
+                const topContent = document.createElement('div');
+                topContent.className = "flex items-center gap-2 w-full pointer-events-none";
+
+                let iconHTML;
                 const thumb = document.createElement('div');
-                thumb.className = "w-16 h-12 bg-black rounded shrink-0 flex items-center justify-center overflow-hidden relative";
-                if(item.type === 'image') {
+                thumb.className = "w-16 h-12 rounded shrink-0 flex items-center justify-center overflow-hidden relative border border-gray-600 shadow";
+                
+                if (item.type === 'image') {
+                    // تمييز أيقونة الإكسل عن الصور العادية
+                    if(item.name.includes('(جدول)')) iconHTML = '<i class="fa-solid fa-table text-green-500"></i>';
+                    else iconHTML = '<i class="fa-solid fa-image text-emerald-400"></i>';
+                    
                     const imgThumb = document.createElement('img'); imgThumb.src = item.url;
                     imgThumb.className = "w-full h-full object-cover opacity-80"; thumb.appendChild(imgThumb);
-                } else { thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`; }
+                } else if (item.type === 'video') {
+                    iconHTML = '<i class="fa-solid fa-video text-blue-400"></i>';
+                    thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`;
+                    thumb.className += " bg-black";
+                } else if (item.type === 'textSlide') {
+                    iconHTML = '<i class="fa-solid fa-font text-indigo-400"></i>';
+                    thumb.style.backgroundColor = item.bgColor || '#ffffff';
+                    thumb.innerHTML = `<span class="text-xs font-bold truncate px-1 drop-shadow-md" style="color: ${item.textColor || '#000'}">${item.text ? 'T' : 'فارغ'}</span>`;
+                }
+
+                let transName = "بدون انتقال";
+                if(item.transitionType === 'fade') transName = "تلاشي";
+                else if(item.transitionType === 'push') transName = "دفع";
+                else if(item.transitionType === 'fly_in') transName = "طيران";
+                else if(item.transitionType === 'split') transName = "انقسام";
+                else if(item.transitionType === 'reveal') transName = "ظهور";
 
                 const details = document.createElement('div');
                 details.className = "flex-grow min-w-0 pointer-events-none";
-                details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)}</p>`;
-                const editIcon = document.createElement('div'); editIcon.className = "text-indigo-400 text-lg opacity-50 group-hover:opacity-100 transition px-2"; editIcon.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+                details.innerHTML = `
+                    <h4 class="text-xs font-bold truncate">${item.name}</h4>
+                    <p class="text-[10px] text-gray-400">
+                        <i class="fa-regular fa-clock"></i> ${formatTime(item.duration)} 
+                        <span class="mx-1">|</span> <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i> ${transName}
+                    </p>`;
+                
                 const iconDiv = document.createElement('div'); iconDiv.className = "w-5 flex items-center justify-center pointer-events-none"; iconDiv.innerHTML = iconHTML;
 
-                el.appendChild(thumb); el.appendChild(iconDiv); el.appendChild(details); el.appendChild(editIcon);
+                topContent.appendChild(thumb); 
+                topContent.appendChild(iconDiv); 
+                topContent.appendChild(details);
+                el.appendChild(topContent);
+
+                if (isActive) {
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = "flex flex-wrap items-center justify-center gap-1 w-full mt-2 pt-2 border-t border-gray-600";
+
+                    const upBtn = document.createElement('button');
+                    upBtn.className = `w-7 h-7 bg-gray-600 hover:bg-gray-500 text-yellow-400 rounded-full flex items-center justify-center transition shadow ${index === 0 ? 'opacity-50 cursor-not-allowed' : ''}`;
+                    upBtn.title = "تحريك للأعلى"; upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+                    upBtn.onclick = (e) => { e.stopPropagation(); if (index > 0) { const temp = timeline[index]; timeline[index] = timeline[index - 1]; timeline[index - 1] = temp; editingIndex = index - 1; renderTimelineUI(); redrawCurrentOrFirst(); } };
+
+                    const downBtn = document.createElement('button');
+                    downBtn.className = `w-7 h-7 bg-gray-600 hover:bg-gray-500 text-yellow-400 rounded-full flex items-center justify-center transition shadow ${index === timeline.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`;
+                    downBtn.title = "تحريك للأسفل"; downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+                    downBtn.onclick = (e) => { e.stopPropagation(); if (index < timeline.length - 1) { const temp = timeline[index]; timeline[index] = timeline[index + 1]; timeline[index + 1] = temp; editingIndex = index + 1; renderTimelineUI(); redrawCurrentOrFirst(); } };
+
+                    const durationBtn = document.createElement('button');
+                    durationBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 text-cyan-400 rounded-full flex items-center justify-center transition shadow";
+                    durationBtn.title = "المدة الزمنية"; durationBtn.innerHTML = '<i class="fa-solid fa-stopwatch"></i>';
+                    durationBtn.onclick = (e) => { e.stopPropagation(); openDurationModal(index); };
+
+                    const transBtn = document.createElement('button');
+                    transBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 text-purple-400 rounded-full flex items-center justify-center transition shadow";
+                    transBtn.title = "تأثير الدخول"; transBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+                    transBtn.onclick = (e) => { e.stopPropagation(); openTransitionModal(index); };
+
+                    actionsDiv.appendChild(upBtn); actionsDiv.appendChild(downBtn);
+                    actionsDiv.appendChild(durationBtn); actionsDiv.appendChild(transBtn);
+
+                    if (item.type === 'textSlide') {
+                        const editBtn = document.createElement('button');
+                        editBtn.className = "w-7 h-7 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center transition shadow";
+                        editBtn.title = "تعديل النص والألوان"; editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+                        editBtn.onclick = (e) => { e.stopPropagation(); openTextSlideEditor(index); };
+                        actionsDiv.appendChild(editBtn);
+                    } else {
+                        const fitBtn = document.createElement('button');
+                        fitBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 text-emerald-400 rounded-full flex items-center justify-center transition shadow";
+                        fitBtn.title = "تغيير الامتلاء والمط"; fitBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                        fitBtn.onclick = (e) => { e.stopPropagation(); const modes = ['stretch', 'contain', 'cover']; let current = item.fitMode || 'stretch'; item.fitMode = modes[(modes.indexOf(current) + 1) % modes.length]; redrawCurrentOrFirst(); };
+
+                        const rotateBtn = document.createElement('button');
+                        rotateBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 text-blue-400 rounded-full flex items-center justify-center transition shadow";
+                        rotateBtn.title = "تدوير الصورة"; rotateBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+                        rotateBtn.onclick = (e) => { e.stopPropagation(); item.rotation = ((item.rotation || 0) + 90) % 360; redrawCurrentOrFirst(); };
+
+                        const zoomBtn = document.createElement('button');
+                        zoomBtn.className = "w-7 h-7 bg-gray-600 hover:bg-gray-500 text-white rounded-full flex items-center justify-center transition shadow";
+                        zoomBtn.title = "تقريب (Zoom)"; zoomBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
+                        zoomBtn.onclick = (e) => { e.stopPropagation(); openZoomModal(index); };
+
+                        actionsDiv.appendChild(fitBtn); actionsDiv.appendChild(rotateBtn); actionsDiv.appendChild(zoomBtn);
+                    }
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = "w-7 h-7 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition shadow-lg ml-auto";
+                    deleteBtn.title = "حذف العنصر"; deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if(item.url && !item.url.startsWith('data:')) { URL.revokeObjectURL(item.url); }
+                        timeline.splice(index, 1);
+                        editingIndex = timeline.length > 0 ? Math.max(0, index - 1) : -1; 
+                        
+                        if(timeline.length === 0) { 
+                            ctx.clearRect(0,0,defaultWidth,defaultHeight); 
+                            ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); 
+                            drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+                            document.getElementById('emptyStateMsg').style.display = 'flex'; 
+                        } else { redrawCurrentOrFirst(); }
+                        renderTimelineUI();
+                    };
+
+                    actionsDiv.appendChild(deleteBtn);
+                    el.appendChild(actionsDiv);
+                } else {
+                    const clickHint = document.createElement('div'); 
+                    clickHint.className = "absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm opacity-50 group-hover:opacity-100 transition pointer-events-none"; 
+                    clickHint.innerHTML = '<i class="fa-solid fa-hand-pointer"></i>';
+                    el.appendChild(clickHint);
+                }
                 timelineContainer.appendChild(el);
             });
         }
 
-        function openClipSettings(index) {
-            if (isPlaying) stopPlayback();
-            editingIndex = index; const item = timeline[index];
-            redrawCurrentOrFirst(); renderTimelineUI(); 
-            clipFitRadios.forEach(r => r.checked = (r.value === item.fitMode));
-            clipZoomInput.value = item.scale; zoomValueDisplay.textContent = Math.round(item.scale * 100) + '%';
-            if (item.type === 'image') { durationControlGroup.style.display = 'block'; clipDurationInput.value = item.duration; } 
-            else { durationControlGroup.style.display = 'none'; }
-            modal.classList.remove('hidden'); modal.classList.add('flex');
-        }
-
-        function closeSettingsModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); renderTimelineUI(); }
-
-        clipFitRadios.forEach(radio => { radio.addEventListener('change', (e) => { if(editingIndex >= 0) { timeline[editingIndex].fitMode = e.target.value; redrawCurrentOrFirst(); } }); });
-        clipZoomInput.addEventListener('input', (e) => { if(editingIndex >= 0) { timeline[editingIndex].scale = parseFloat(e.target.value); zoomValueDisplay.textContent = Math.round(timeline[editingIndex].scale * 100) + '%'; redrawCurrentOrFirst(); } });
-        clipRotateBtn.addEventListener('click', () => { if(editingIndex >= 0) { timeline[editingIndex].rotation = ((timeline[editingIndex].rotation || 0) + 90) % 360; redrawCurrentOrFirst(); } });
-        clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
-        deleteClipBtn.addEventListener('click', () => {
-            if(editingIndex >= 0) {
-                URL.revokeObjectURL(timeline[editingIndex].url); timeline.splice(editingIndex, 1);
-                editingIndex = timeline.length > 0 ? 0 : -1; closeSettingsModal();
-                if(timeline.length === 0) { ctx.clearRect(0,0,defaultWidth,defaultHeight); ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); emptyStateMsg.style.display = 'flex'; } 
-                else { redrawCurrentOrFirst(); }
-            }
-        });
-        closeModalBtn.addEventListener('click', closeSettingsModal); saveModalBtn.addEventListener('click', closeSettingsModal);
-
-
-        // --- التشغيل الموثوق والنظام المقاوم للتجميد (Freeze-Protection) ---
         function playTimelineItem(item, exportMode = false) {
             return new Promise(async (resolve) => {
                 if (!isPlaying) return resolve();
@@ -454,13 +1205,13 @@
                 let lastFrameTime = startTime;
                 const audioMode = getAudioMode();
                 
+                const transDuration = Math.min(1.0, item.duration * 0.5);
+                
                 const checkAndDrawFrame = () => {
                     if (!isPlaying) return resolve();
                     let now = performance.now();
                     
-                    if (now - lastFrameTime > 500) {
-                        startTime += (now - lastFrameTime);
-                    }
+                    if (now - lastFrameTime > 500) { startTime += (now - lastFrameTime); }
                     lastFrameTime = now;
 
                     let elapsedSec = (now - startTime) / 1000;
@@ -468,28 +1219,29 @@
 
                     if (item.type === 'video') {
                         const vid = item.element;
-                        if (vid.ended || vid.currentTime >= item.duration - 0.1) {
-                            vid.pause();
-                            return resolve();
+                        if (vid.ended || vid.currentTime >= item.duration - 0.1 || elapsedSec >= item.duration) { 
+                            vid.pause(); return resolve(); 
                         }
                     } else {
-                        if (elapsedSec >= item.duration) {
-                            return resolve();
-                        }
+                        if (elapsedSec >= item.duration) { return resolve(); }
                     }
                     
-                    drawMedia(ctx, item, defaultWidth, defaultHeight);
+                    let progress = 1;
+                    if (item.transitionType && item.transitionType !== 'none' && elapsedSec < transDuration) {
+                        progress = elapsedSec / transDuration;
+                    }
+
+                    drawMedia(ctx, item, defaultWidth, defaultHeight, progress);
+                    drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
                     
-                    // خدعة البكسل الشفاف: تجبر بعض الهواتف على عدم إيقاف تسجيل الفيديو للصور الثابتة!
                     if (exportMode) {
-                        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`;
-                        ctx.fillRect(0, 0, 1, 1);
+                        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`; ctx.fillRect(0, 0, 1, 1);
                     }
                     
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 };
 
-                if (item.type === 'image') {
+                if (item.type === 'image' || item.type === 'textSlide') {
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 } else if (item.type === 'video') {
                     const vid = item.element; vid.currentTime = 0;
@@ -525,25 +1277,50 @@
             let totalDuration = timeline.reduce((sum, item) => sum + item.duration, 0);
 
             if (exportMode) {
-                // إظهار نافذة التصدير مع منع النقر على باقي الشاشة دون إخفاء الكانفاس
-                clickBlocker.classList.remove('hidden');
-                processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
-                doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
-                exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
-                exportProgressBar.style.width = '0%'; exportProgressText.innerText = '0%';
+                document.getElementById('clickBlocker').classList.remove('hidden');
+                document.getElementById('processingUI').classList.remove('hidden'); document.getElementById('processingUI').classList.add('flex');
+                document.getElementById('doneUI').classList.add('hidden'); document.getElementById('doneUI').classList.remove('flex');
+                document.getElementById('exportOverlay').classList.remove('hidden'); document.getElementById('exportOverlay').classList.add('flex');
+                document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('exportProgressText').innerText = '0%';
                 
-                const canvasStream = canvas.captureStream(30);
+                const canvasStream = canvas.captureStream(projectFPS); 
                 const tracks = [canvasStream.getVideoTracks()[0]];
                 if (audioCtx && destStream) tracks.push(destStream.stream.getAudioTracks()[0]);
                 
                 const combinedStream = new MediaStream(tracks); exportChunks = [];
-                let mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm; codecs=vp8,opus';
-                try { exportMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mime }); } 
+                
+                let mimeType = '';
+                if (projectCodec === 'h264') {
+                    let types = ['video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=h264'];
+                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
+                } else if (projectCodec === 'vp9') {
+                    let types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9'];
+                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
+                } else if (projectCodec === 'vp8') {
+                    let types = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8'];
+                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
+                }
+
+                if (!mimeType) {
+                    const preferredTypes = ['video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+                    for (let t of preferredTypes) { if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; } }
+                }
+
+                let options = { mimeType: mimeType };
+                let baseBitrate = 2500000;
+                if (projectResolution >= 1080) baseBitrate = 8000000;
+                else if (projectResolution >= 720) baseBitrate = 5000000;
+                
+                if (projectFPS > 30) baseBitrate *= 1.5; 
+                options.videoBitsPerSecond = baseBitrate;
+
+                try { exportMediaRecorder = new MediaRecorder(combinedStream, options); } 
                 catch(e) { exportMediaRecorder = new MediaRecorder(combinedStream); }
                 
                 exportMediaRecorder.ondataavailable = e => { if (e.data.size > 0) exportChunks.push(e.data); };
                 exportMediaRecorder.onstop = finalizeExport;
-                try { exportMediaRecorder.start(1000); } catch(err) { alert("فشل بدء التسجيل في متصفحك."); stopPlayback(); return; }
+                
+                try { exportMediaRecorder.start(); } catch(err) { alert("فشل بدء التسجيل."); stopPlayback(); return; }
             }
 
             if (backgroundAudio) {
@@ -564,22 +1341,18 @@
                 if(!isPlaying) { clearInterval(uiTimer); return; }
                 
                 let completedDuration = 0;
-                for(let i=0; i<editingIndex; i++) {
-                    completedDuration += timeline[i].duration;
-                }
+                for(let i=0; i<editingIndex; i++) { completedDuration += timeline[i].duration; }
                 let realElapsed = completedDuration + activeClipElapsedSec;
                 
                 if (exportMode) {
                     let percent = Math.min(100, Math.floor((realElapsed / totalDuration) * 100));
-                    exportProgressBar.style.width = percent + '%';
-                    exportProgressText.innerText = percent + '%';
+                    document.getElementById('exportProgressBar').style.width = percent + '%'; 
+                    document.getElementById('exportProgressText').innerText = percent + '%';
                 }
                 
                 timeDisplay.textContent = formatTime(Math.floor(realElapsed));
-
             }, 200);
 
-            // تشغيل المقاطع بالترتيب
             for (let i = 0; i < timeline.length; i++) {
                 if (!isPlaying) break;
                 await playTimelineItem(timeline[i], exportMode);
@@ -601,8 +1374,8 @@
             if (isExporting && exportMediaRecorder && exportMediaRecorder.state !== 'inactive') {
                 exportMediaRecorder.stop(); 
             } else {
-                clickBlocker.classList.add('hidden');
-                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+                document.getElementById('clickBlocker').classList.add('hidden');
+                document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
             }
             
             isExporting = false; timeDisplay.textContent = "00:00";
@@ -615,8 +1388,8 @@
         function finalizeExport() {
             stopPlayback();
             if (exportChunks.length === 0) {
-                clickBlocker.classList.add('hidden');
-                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+                document.getElementById('clickBlocker').classList.add('hidden');
+                document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
                 alert("حدث خطأ أثناء التصدير."); return;
             }
             
@@ -624,15 +1397,15 @@
             finalVideoExt = type === 'video/mp4' ? 'mp4' : 'webm';
             finalVideoBlob = new Blob(exportChunks, { type: type });
             
-            processingUI.classList.add('hidden'); processingUI.classList.remove('flex');
-            doneUI.classList.remove('hidden'); doneUI.classList.add('flex');
-            clickBlocker.classList.remove('hidden');
-            exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+            document.getElementById('processingUI').classList.add('hidden'); document.getElementById('processingUI').classList.remove('flex');
+            document.getElementById('doneUI').classList.remove('hidden'); document.getElementById('doneUI').classList.add('flex');
+            document.getElementById('clickBlocker').classList.remove('hidden');
+            document.getElementById('exportOverlay').classList.remove('hidden'); document.getElementById('exportOverlay').classList.add('flex');
 
             try {
                 const file = new File([finalVideoBlob], `Video_${Date.now()}.${finalVideoExt}`, { type: type });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    finalShareBtn.classList.remove('hidden');
+                    document.getElementById('finalShareBtn').classList.remove('hidden');
                 }
             } catch (e) { console.warn("Share API error", e); }
         }
@@ -664,7 +1437,7 @@
             isExporting = true; startPlayback(true);
         });
 
-        finalDownloadBtn.addEventListener('click', () => {
+        document.getElementById('finalDownloadBtn').addEventListener('click', () => {
             if (!finalVideoBlob) return;
             const url = URL.createObjectURL(finalVideoBlob); 
             const a = document.createElement('a'); a.style.display = 'none';
@@ -672,7 +1445,7 @@
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         });
 
-        finalShareBtn.addEventListener('click', async () => {
+        document.getElementById('finalShareBtn').addEventListener('click', async () => {
             if (!finalVideoBlob) return;
             const file = new File([finalVideoBlob], `Edited_Video_${Date.now()}.${finalVideoExt}`, { type: finalVideoBlob.type });
             try {
@@ -684,9 +1457,9 @@
             } catch (err) { console.log("تم إلغاء المشاركة", err); }
         });
 
-        finalCloseBtn.addEventListener('click', () => {
-            clickBlocker.classList.add('hidden');
-            exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+        document.getElementById('finalCloseBtn').addEventListener('click', () => {
+            document.getElementById('clickBlocker').classList.add('hidden');
+            document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
         });
 
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
