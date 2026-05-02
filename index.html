@@ -1,14 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>محرر الفيديو الاحترافي</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
         
@@ -32,16 +32,13 @@
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col h-screen overflow-hidden relative">
 
-    <!-- حاجز الشاشة لمنع النقر أثناء التصدير (شفاف بالكامل لكي لا يوقف المتصفح الفيديو) -->
     <div id="clickBlocker" class="fixed inset-0 z-40 hidden"></div>
 
-    <!-- شاشة التصدير العائمة (في المنتصف ولكن لا تغطي كامل الشاشة) -->
     <div id="exportOverlay" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900 border-2 border-indigo-500 p-6 rounded-2xl shadow-2xl z-50 hidden flex-col items-center w-[90%] max-w-sm">
         
-        <!-- واجهة التحميل -->
         <div id="processingUI" class="flex flex-col items-center w-full">
             <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
-            <h2 class="text-xl font-bold text-white mb-4">جاري معالجة الفيديو...</h2>
+            <h2 id="loadingTitle" class="text-xl font-bold text-white mb-4">جاري معالجة الفيديو...</h2>
             
             <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
                 <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
@@ -51,7 +48,6 @@
             <p class="text-gray-400 text-xs text-center">يرجى إبقاء الشاشة مضاءة ومراقبة الفيديو في الخلفية حتى يكتمل.</p>
         </div>
 
-        <!-- واجهة الانتهاء والمشاركة -->
         <div id="doneUI" class="hidden flex-col items-center w-full">
             <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
             <h2 class="text-xl font-bold text-white mb-6">اكتمل صنع الفيديو بنجاح!</h2>
@@ -70,7 +66,6 @@
         </div>
     </div>
 
-    <!-- شريط العنوان -->
     <header class="bg-gray-800 border-b border-gray-700 p-3 flex justify-between items-center z-10 shrink-0 shadow-md">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl shadow-lg">
@@ -88,10 +83,8 @@
 
     <main class="flex-grow flex flex-col lg:flex-row overflow-hidden">
         
-        <!-- مساحة العرض (Canvas) -->
         <section class="w-full h-[40vh] min-h-[250px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
             
-            <!-- HD Canvas (16:9) -->
             <div class="relative w-full max-w-4xl aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center">
                 <canvas id="previewCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
                 
@@ -101,7 +94,6 @@
                 </div>
             </div>
 
-            <!-- أزرار التشغيل -->
             <div class="mt-4 flex items-center gap-4 bg-gray-800 p-2 rounded-full border border-gray-700 shadow-lg px-4">
                 <button id="playBtn" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 rounded-full flex items-center justify-center text-lg transition">
                     <i class="fa-solid fa-play ml-1"></i>
@@ -114,16 +106,14 @@
             </div>
         </section>
 
-        <!-- الشريط الجانبي (إضافة وسائط والشريط الزمني) -->
         <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-hidden">
             
             <div class="p-4 border-b border-gray-700 bg-gray-800 shrink-0 z-20 shadow-md">
-                <!-- أزرار الرفع -->
                 <div class="grid grid-cols-2 gap-3 mb-4">
-                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500">
-                        <i class="fa-solid fa-image text-indigo-400 text-xl"></i>
-                        <span class="text-xs font-bold text-center">أضف صورة/فيديو</span>
-                        <input type="file" id="mediaInput" accept="image/*,video/*" multiple class="hidden">
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 text-center relative overflow-hidden">
+                        <i class="fa-solid fa-file-circle-plus text-indigo-400 text-xl"></i>
+                        <span class="text-[11px] font-bold">ملف / صورة / PDF</span>
+                        <input type="file" id="mediaInput" accept="image/*,video/*,application/pdf" multiple class="hidden">
                     </label>
                     
                     <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
@@ -136,7 +126,6 @@
                     </label>
                 </div>
 
-                <!-- إعدادات الصوت العامة -->
                 <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
                     <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> دمج الصوت للفيديو النهائي</h4>
                     <div class="flex items-center w-full text-xs">
@@ -152,7 +141,6 @@
                 </div>
             </div>
 
-            <!-- الشريط الزمني (Timeline) -->
             <div class="flex-grow p-4 flex flex-col gap-2 overflow-y-auto" id="timelineContainer">
                 <div class="text-center text-gray-500 text-sm mt-8" id="emptyTimelineMsg">
                     <i class="fa-solid fa-arrow-up block text-2xl mb-2 opacity-50"></i>
@@ -163,7 +151,6 @@
         </section>
     </main>
 
-    <!-- نافذة تعديل المقطع المنبثقة (Modal) -->
     <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
             <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
@@ -218,6 +205,9 @@
     </div>
 
     <script>
+        // إعداد عامل مسار الـ PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
         const defaultWidth = canvas.width;  // 1280
@@ -235,7 +225,7 @@
 
         let audioCtx;
         let destStream;
-        let silentOsc; // موجة صامتة لضمان استمرار الصوت
+        let silentOsc; 
 
         // UI Elements
         const mediaInput = document.getElementById('mediaInput');
@@ -258,6 +248,7 @@
         const finalDownloadBtn = document.getElementById('finalDownloadBtn');
         const finalShareBtn = document.getElementById('finalShareBtn');
         const finalCloseBtn = document.getElementById('finalCloseBtn');
+        const loadingTitle = document.getElementById('loadingTitle');
 
         // Clip Settings Modal Elements
         const modal = document.getElementById('clipSettingsModal');
@@ -286,7 +277,7 @@
             const img = item.element;
             const rot = item.rotation || 0;
             const scale = item.scale || 1.0;
-            const mode = item.fitMode || 'stretch'; // الوضع التلقائي تمطيط
+            const mode = item.fitMode || 'stretch'; 
 
             let iw = img.videoWidth || img.width;
             let ih = img.videoHeight || img.height;
@@ -320,43 +311,95 @@
             drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight);
         }
 
-        // نظام الصوت الذكي (يمنع الهاتف من إيقاف التسجيل)
         function initAudioSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 destStream = audioCtx.createMediaStreamDestination();
                 
-                // الموجة الصامتة: تمنع مسجل الفيديو من التجمد إذا لم يكن هناك صوت
                 silentOsc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0; // صامت
+                gain.gain.value = 0; 
                 silentOsc.connect(gain);
                 gain.connect(destStream);
                 silentOsc.start();
             }
         }
 
-        // رفع الملفات
+        // رفع الملفات (متضمنة معالجة PDF)
         mediaInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
             emptyStateMsg.style.display = 'none';
+
+            // إظهار واجهة التحميل في حال كانت الملفات كبيرة أو PDF متعدد الصفحات
+            clickBlocker.classList.remove('hidden');
+            exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+            processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
+            doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
+            loadingTitle.innerText = "جاري استخراج الملفات...";
+            exportProgressBar.style.width = '100%'; 
+            exportProgressText.innerText = 'الرجاء الانتظار';
 
             for (let file of files) {
                 const url = URL.createObjectURL(file);
                 const id = Date.now() + Math.random().toString();
                 const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch' };
                 
-                if (file.type.startsWith('image/')) {
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    try {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        const numPages = pdf.numPages;
+
+                        for (let i = 1; i <= numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const viewport = page.getViewport({ scale: 2.0 }); // جودة عالية لضمان الوضوح
+
+                            const tempCanvas = document.createElement('canvas');
+                            const tempCtx = tempCanvas.getContext('2d');
+                            tempCanvas.width = viewport.width;
+                            tempCanvas.height = viewport.height;
+
+                            await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
+
+                            const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
+                            const img = new Image();
+                            img.src = dataUrl;
+                            await new Promise(r => img.onload = r);
+
+                            timeline.push({ 
+                                id: Date.now() + Math.random().toString(), 
+                                type: 'image', 
+                                name: `${file.name.replace('.pdf','')} - ص ${i}`, 
+                                element: img, 
+                                duration: 4, 
+                                url: dataUrl, 
+                                rotation: 0, 
+                                scale: 1, 
+                                fitMode: 'contain' // Contain أنسب لملفات PDF افتراضياً
+                            });
+                        }
+                    } catch (error) {
+                        console.error("Error reading PDF:", error);
+                        alert("حدث خطأ أثناء قراءة ملف الـ PDF: " + file.name);
+                    }
+                }
+                else if (file.type.startsWith('image/')) {
                     const img = new Image(); img.src = url;
                     await new Promise(r => img.onload = r);
                     timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
-                } else if (file.type.startsWith('video/')) {
+                } 
+                else if (file.type.startsWith('video/')) {
                     const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
                     await new Promise(r => vid.onloadedmetadata = r);
                     timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
                 }
             }
+            
+            // إخفاء واجهة التحميل بعد الانتهاء
+            clickBlocker.classList.add('hidden');
+            exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
+
             renderTimelineUI();
             if (!isPlaying) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
             mediaInput.value = '';
@@ -435,7 +478,8 @@
         clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
         deleteClipBtn.addEventListener('click', () => {
             if(editingIndex >= 0) {
-                URL.revokeObjectURL(timeline[editingIndex].url); timeline.splice(editingIndex, 1);
+                if (timeline[editingIndex].url) URL.revokeObjectURL(timeline[editingIndex].url); 
+                timeline.splice(editingIndex, 1);
                 editingIndex = timeline.length > 0 ? 0 : -1; closeSettingsModal();
                 if(timeline.length === 0) { ctx.clearRect(0,0,defaultWidth,defaultHeight); ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); emptyStateMsg.style.display = 'flex'; } 
                 else { redrawCurrentOrFirst(); }
@@ -481,7 +525,6 @@
                     
                     drawMedia(ctx, item, defaultWidth, defaultHeight);
                     
-                    // خدعة البكسل الشفاف: تجبر بعض الهواتف على عدم إيقاف تسجيل الفيديو للصور الثابتة!
                     if (exportMode) {
                         ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`;
                         ctx.fillRect(0, 0, 1, 1);
@@ -526,11 +569,11 @@
             let totalDuration = timeline.reduce((sum, item) => sum + item.duration, 0);
 
             if (exportMode) {
-                // إظهار نافذة التصدير مع منع النقر على باقي الشاشة دون إخفاء الكانفاس
                 clickBlocker.classList.remove('hidden');
                 processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
                 doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
                 exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+                loadingTitle.innerText = "جاري معالجة الفيديو...";
                 exportProgressBar.style.width = '0%'; exportProgressText.innerText = '0%';
                 
                 const canvasStream = canvas.captureStream(30);
@@ -580,7 +623,6 @@
 
             }, 200);
 
-            // تشغيل المقاطع بالترتيب
             for (let i = 0; i < timeline.length; i++) {
                 if (!isPlaying) break;
                 await playTimelineItem(timeline[i], exportMode);
