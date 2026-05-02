@@ -9,503 +9,219 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- PDF.js Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
-
-    <!-- Docx Preview Library (For Word) -->
-    <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
-    <script src="https://unpkg.com/docx-preview/dist/docx-preview.min.js"></script>
-    
-    <!-- SheetJS Library (For Excel) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <!-- html2canvas Library (For taking screenshots of Docs & Excel) -->
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-
     <style>
-        body { 
-            font-family: system-ui, -apple-system, sans-serif; 
-            background-color: #0f172a; 
-            background-image: radial-gradient(circle at top right, #1e293b, #0f172a);
-        }
+        body { font-family: system-ui, -apple-system, sans-serif; }
         
         ::-webkit-scrollbar { height: 6px; width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        .clip-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; flex-shrink: 0; }
+        .clip-item { transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
+        .clip-item:hover { border-color: #4b5563; }
+        .clip-item.active { border-color: #6366f1; background-color: #374151; }
         
         .custom-radio:checked + label {
-            background-color: #6366f1;
+            background-color: #4f46e5;
             color: white;
-            border-color: #6366f1;
-            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+            border-color: #4f46e5;
         }
 
-        input[type=range] { accent-color: #6366f1; }
-        input[type=color] { border: none; padding: 0; background: transparent; cursor: pointer; border-radius: 8px; overflow: hidden; }
-
-        .touch-scroll-container {
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-y: contain;
-            touch-action: pan-y;
-        }
-        
-        #canvasContainer { transition: aspect-ratio 0.3s ease, box-shadow 0.3s ease; }
-
-        #documentRenderContainer {
-            position: absolute;
-            left: -9999px;
-            top: 0;
-            background: white;
-            width: max-content;
-            min-width: 800px;
-            color: black;
-            padding: 40px;
-            direction: rtl;
-        }
-
-        #documentRenderContainer table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: system-ui, -apple-system, sans-serif;
-            margin: 0 auto;
-            background-color: #ffffff;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        #documentRenderContainer th, #documentRenderContainer td {
-            border: 2px solid #cbd5e1;
-            padding: 15px;
-            text-align: center;
-            font-size: 8pt; /* تم التعديل إلى 8pt */
-        }
-        #documentRenderContainer th {
-            background-color: #f1f5f9;
-            font-weight: bold;
-            font-size: 10pt;
-            color: #1e293b;
-        }
+        input[type=range] { accent-color: #4f46e5; }
     </style>
 </head>
-<body class="text-gray-100 flex flex-col h-[100dvh] overflow-hidden relative">
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col h-screen overflow-hidden relative">
 
+    <!-- حاجز الشاشة لمنع النقر أثناء التصدير (شفاف بالكامل لكي لا يوقف المتصفح الفيديو) -->
     <div id="clickBlocker" class="fixed inset-0 z-40 hidden"></div>
-    
-    <div id="documentRenderContainer"></div>
 
-    <div id="exportOverlay" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900/95 backdrop-blur-xl border border-indigo-500/50 p-8 rounded-3xl shadow-[0_0_50px_rgba(99,102,241,0.3)] z-50 hidden flex-col items-center w-[90%] max-w-sm">
+    <!-- شاشة التصدير العائمة (في المنتصف ولكن لا تغطي كامل الشاشة) -->
+    <div id="exportOverlay" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900 border-2 border-indigo-500 p-6 rounded-2xl shadow-2xl z-50 hidden flex-col items-center w-[90%] max-w-sm">
+        
+        <!-- واجهة التحميل -->
         <div id="processingUI" class="flex flex-col items-center w-full">
-            <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-400 mb-5 drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]"></i>
-            <h2 class="text-xl font-bold text-white mb-5">جاري معالجة الفيديو...</h2>
-            <div class="w-full bg-gray-800 rounded-full h-3 mb-3 overflow-hidden shadow-inner">
-                <div id="exportProgressBar" class="bg-gradient-to-r from-indigo-600 to-purple-500 h-3 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            <i class="fa-solid fa-gear fa-spin text-5xl text-indigo-500 mb-4"></i>
+            <h2 class="text-xl font-bold text-white mb-4">جاري معالجة الفيديو...</h2>
+            
+            <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden border border-gray-600 shadow-inner">
+                <div id="exportProgressBar" class="bg-indigo-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
             </div>
-            <p id="exportProgressText" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 mb-3">0%</p>
-            <p class="text-rose-300 text-[11px] font-bold text-center mt-2 bg-rose-900/20 px-3 py-2 rounded-lg border border-rose-800/50">
-                <i class="fa-solid fa-triangle-exclamation mr-1"></i> تحذير: لا تقم بإغلاق الشاشة لمنع التقطيع!
-            </p>
+            <p id="exportProgressText" class="text-2xl font-bold text-indigo-300 mb-2 drop-shadow-md">0%</p>
+            
+            <p class="text-gray-400 text-xs text-center">يرجى إبقاء الشاشة مضاءة ومراقبة الفيديو في الخلفية حتى يكتمل.</p>
         </div>
+
+        <!-- واجهة الانتهاء والمشاركة -->
         <div id="doneUI" class="hidden flex-col items-center w-full">
-            <i class="fa-solid fa-circle-check text-7xl text-emerald-400 mb-5 drop-shadow-[0_0_15px_rgba(52,211,153,0.4)]"></i>
-            <h2 class="text-2xl font-bold text-white mb-6">اكتمل بنجاح!</h2>
+            <i class="fa-solid fa-circle-check text-6xl text-emerald-500 mb-4 drop-shadow-lg"></i>
+            <h2 class="text-xl font-bold text-white mb-6">اكتمل صنع الفيديو بنجاح!</h2>
+            
             <div class="flex flex-col gap-3 w-full">
-                <button id="finalDownloadBtn" class="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white py-3.5 rounded-xl font-bold flex justify-center items-center gap-2 transition-all shadow-lg hover:shadow-emerald-500/25 hover:-translate-y-0.5">
-                    <i class="fa-solid fa-floppy-disk text-lg"></i> حفظ
+                <button id="finalDownloadBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg">
+                    <i class="fa-solid fa-download"></i> حفظ في الهاتف
                 </button>
-                <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-bold flex justify-center items-center gap-2 transition-all shadow-lg hover:shadow-blue-500/25 hover:-translate-y-0.5 hidden">
-                    <i class="fa-solid fa-share-nodes text-lg"></i> مشاركة وإرسال
+                
+                <button id="finalShareBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition shadow-lg hidden">
+                    <i class="fa-solid fa-share-nodes text-xl"></i> مشاركة وإرسال
                 </button>
             </div>
-            <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white transition-colors text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-800">العودة للمحرر</button>
+            
+            <button id="finalCloseBtn" class="mt-6 text-gray-400 hover:text-white underline text-sm transition">إغلاق والعودة للمحرر</button>
         </div>
     </div>
 
     <!-- شريط العنوان -->
-    <header class="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 p-3 lg:p-4 flex justify-between items-center z-10 shrink-0 shadow-sm">
+    <header class="bg-gray-800 border-b border-gray-700 p-3 flex justify-between items-center z-10 shrink-0 shadow-md">
         <div class="flex items-center gap-3">
-            <div class="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-xl shadow-lg shadow-indigo-500/20 text-white">
+            <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl shadow-lg">
                 <i class="fa-solid fa-film"></i>
             </div>
             <div>
-                <h1 class="text-base lg:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">محرر الفيديو MSL</h1>
-                <p class="text-[10px] lg:text-xs text-indigo-300/80 font-medium">قص، نصوص، وورد، اكسل، دمج</p>
+                <h1 class="text-lg font-bold">محرر الفيديو الاحترافي</h1>
+                <p class="text-[10px] text-gray-400">قص، تدوير، زووم، ودمج مع الصوت</p>
             </div>
         </div>
-        
-        <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-400 font-bold block lg:hidden ml-2">د. حسين</span>
-            <button id="openMergeModalBtn" class="bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-transparent px-3 lg:px-4 py-2 lg:py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all flex items-center gap-2" title="دمج شريحتين في صورة واحدة">
-                <i class="fa-solid fa-object-group"></i> <span class="hidden md:inline">دمج</span>
-            </button>
-
-            <button id="clearAllBtn" class="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 hover:border-transparent px-3 lg:px-4 py-2 lg:py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all flex items-center gap-2" title="تفريغ كل العناصر">
-                <i class="fa-solid fa-trash-can"></i> <span class="hidden md:inline">تفريغ</span>
-            </button>
-            
-            <button id="projectSettingsBtn" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-500 px-3 lg:px-4 py-2 lg:py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all flex items-center gap-2" title="إعدادات الفيديو">
-                <i class="fa-solid fa-gear"></i> <span class="hidden md:inline">الإعدادات</span>
-            </button>
-            
-            <button id="exportBtn" class="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white px-4 py-2 lg:py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 flex items-center gap-2">
-                <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">حفظ</span>
-            </button>
-        </div>
+        <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
+            <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">حفظ الفيديو</span>
+        </button>
     </header>
 
-    <main id="mainLayout" class="flex-grow flex overflow-hidden min-h-0">
+    <main class="flex-grow flex flex-col lg:flex-row overflow-hidden">
         
         <!-- مساحة العرض (Canvas) -->
-        <section id="canvasSection" class="w-full flex flex-col items-center justify-center p-4 lg:p-6 relative shrink-0">
-            <div id="canvasContainer" class="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-gray-800 flex items-center justify-center ring-1 ring-white/5" style="aspect-ratio: 16/9; max-height: 100%;">
+        <section class="w-full h-[40vh] min-h-[250px] lg:h-auto lg:flex-1 flex flex-col items-center justify-center p-4 bg-black relative shrink-0">
+            
+            <!-- HD Canvas (16:9) -->
+            <div class="relative w-full max-w-4xl aspect-video bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700 flex items-center justify-center">
                 <canvas id="previewCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
                 
-                <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-gray-900/50 backdrop-blur-sm">
-                    <div class="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-lg border border-gray-700">
-                        <i class="fa-regular fa-images text-4xl text-gray-400"></i>
-                    </div>
-                    <p class="text-gray-300 text-sm font-medium text-center px-4">الشاشة فارغة، أضف صوراً أو مستندات، أو أضف شريحة نصية</p>
+                <div id="emptyStateMsg" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <i class="fa-regular fa-images text-6xl text-gray-600 mb-4"></i>
+                    <p class="text-gray-400">الشاشة فارغة، أضف صوراً أو مقاطع من القائمة</p>
                 </div>
             </div>
 
-            <div class="mt-6 flex items-center gap-4 bg-gray-800/80 backdrop-blur-md p-2 rounded-2xl border border-gray-700/50 shadow-xl px-5">
-                <button id="playBtn" class="w-12 h-12 bg-indigo-500 hover:bg-indigo-400 rounded-xl flex items-center justify-center text-xl transition-all shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 text-white" title="تشغيل">
+            <!-- أزرار التشغيل -->
+            <div class="mt-4 flex items-center gap-4 bg-gray-800 p-2 rounded-full border border-gray-700 shadow-lg px-4">
+                <button id="playBtn" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 rounded-full flex items-center justify-center text-lg transition">
                     <i class="fa-solid fa-play ml-1"></i>
                 </button>
-                <button id="stopBtn" class="w-12 h-12 bg-gray-700 hover:bg-rose-500 hover:text-white rounded-xl flex items-center justify-center text-xl transition-all hidden" title="إيقاف">
+                <button id="stopBtn" class="w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-lg transition hidden">
                     <i class="fa-solid fa-stop"></i>
                 </button>
-                
-                <button id="addTextSlideBtn" class="w-12 h-12 bg-gray-700 hover:bg-purple-500 text-purple-400 hover:text-white rounded-xl flex items-center justify-center text-xl transition-all shadow-lg hover:-translate-y-0.5" title="إضافة شريحة فارغة / نصية">
-                    <i class="fa-solid fa-square-plus"></i>
-                </button>
-
-                <div class="h-8 w-px bg-gray-600 mx-2"></div>
-                <div class="text-lg font-mono font-bold text-gray-200 w-20 text-center tracking-wider" id="timeDisplay">00:00</div>
+                <div class="h-6 w-px bg-gray-600 mx-1"></div>
+                <div class="text-sm font-mono text-gray-300 w-16 text-center" id="timeDisplay">00:00</div>
             </div>
         </section>
 
-        <!-- الشريط الجانبي (الأدوات والملفات) -->
-        <section id="timelineSection" class="bg-gray-800/30 backdrop-blur-md border-gray-700/50 flex flex-col overflow-hidden min-h-0">
-            <div class="p-4 lg:p-5 border-b border-gray-700/50 shrink-0 z-20 shadow-sm">
-                <div class="grid grid-cols-2 gap-4">
-                    <label class="group bg-gray-800 hover:bg-gray-700 cursor-pointer p-4 rounded-2xl flex flex-col items-center gap-3 transition-all duration-300 border-2 border-dashed border-gray-600 hover:border-indigo-500 relative">
-                        <div class="flex gap-2 text-xl transition-transform duration-300 group-hover:-translate-y-1">
-                            <i class="fa-solid fa-file-pdf text-rose-400"></i>
-                            <i class="fa-solid fa-file-word text-blue-400"></i>
-                            <i class="fa-solid fa-file-excel text-emerald-500"></i>
-                            <i class="fa-solid fa-image text-indigo-400"></i>
-                        </div>
-                        <span class="text-xs font-bold text-gray-300 text-center">أضف ميديا / مستند</span>
-                        <input type="file" id="mediaInput" accept="image/*,video/*,application/pdf,.docx,.doc,.xlsx,.xls" multiple class="hidden">
-                        
-                        <div id="docLoadingIndicator" class="absolute inset-0 bg-gray-900/90 backdrop-blur-sm rounded-xl hidden flex-col items-center justify-center z-10">
-                            <i class="fa-solid fa-spinner fa-spin text-indigo-400 text-2xl mb-2"></i>
-                            <span class="text-[10px] text-indigo-200 font-bold tracking-wider">جاري المعالجة...</span>
-                        </div>
+        <!-- الشريط الجانبي (إضافة وسائط والشريط الزمني) -->
+        <section class="w-full lg:w-[380px] flex-1 lg:flex-none bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col overflow-hidden">
+            
+            <div class="p-4 border-b border-gray-700 bg-gray-800 shrink-0 z-20 shadow-md">
+                <!-- أزرار الرفع -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500">
+                        <i class="fa-solid fa-image text-indigo-400 text-xl"></i>
+                        <span class="text-xs font-bold text-center">أضف صورة/فيديو</span>
+                        <input type="file" id="mediaInput" accept="image/*,video/*" multiple class="hidden">
                     </label>
                     
-                    <label class="group bg-gray-800 hover:bg-gray-700 cursor-pointer p-4 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all duration-300 border-2 border-dashed border-gray-600 hover:border-pink-500 relative" id="audioUploadContainer">
-                        <i class="fa-solid fa-music text-pink-400 text-3xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-110"></i>
-                        <span class="text-xs font-bold text-gray-300 text-center w-full truncate px-1">موسيقى خلفية</span>
+                    <label class="bg-gray-700 hover:bg-gray-600 cursor-pointer p-3 rounded-lg flex flex-col items-center gap-2 transition border border-dashed border-gray-500 relative" id="audioUploadContainer">
+                        <i class="fa-solid fa-music text-pink-400 text-xl"></i>
+                        <span class="text-xs font-bold text-center w-full truncate px-2">موسيقى خارجية</span>
                         <input type="file" id="audioInput" accept="audio/*" class="hidden">
-                        <button id="removeAudioBtn" class="absolute -top-3 -right-3 bg-rose-500 text-white w-8 h-8 rounded-full hidden items-center justify-center text-sm shadow-lg hover:bg-rose-600 hover:scale-110 transition-transform z-20">
+                        <button id="removeAudioBtn" class="absolute -top-2 -right-2 bg-red-500 w-6 h-6 rounded-full hidden items-center justify-center text-xs shadow-lg hover:bg-red-600">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </label>
                 </div>
-            </div>
-            
-            <div class="flex-grow p-4 pb-24 flex flex-col gap-3 overflow-y-auto touch-scroll-container min-h-0" id="timelineContainer">
-                <div class="text-center text-gray-500 flex flex-col items-center justify-center h-full opacity-60" id="emptyTimelineMsg">
-                    <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-3 border border-gray-700">
-                        <i class="fa-solid fa-arrow-up text-2xl text-gray-400"></i>
-                    </div>
-                    <p class="text-sm font-medium">ابدأ بإضافة الملفات هنا</p>
-                </div>
-            </div>
-        </section>
-    </main>
 
-    <!-- النوافذ المنبثقة (Modals) -->
-
-    <!-- نافذة دمج الشرائح -->
-    <div id="mergeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-object-group text-indigo-400"></i> دمج عنصرين في صورة واحدة</h3>
-                <button onclick="closeModal('mergeModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-6 flex flex-col gap-5">
-                <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
-                    <label class="block text-xs font-bold text-indigo-300 mb-3 text-center">الدمج المخصص (اكتب أرقام العناصر من الشريط الزمني)</label>
-                    <div class="flex items-center gap-3 justify-center">
-                        <input type="number" id="mergeIdx1" min="1" placeholder="رقم 1" class="w-20 bg-gray-900 border border-gray-700 focus:border-indigo-500 text-white rounded-lg p-2 text-center font-bold outline-none transition-colors">
-                        <span class="text-gray-500 font-bold">+</span>
-                        <input type="number" id="mergeIdx2" min="1" placeholder="رقم 2" class="w-20 bg-gray-900 border border-gray-700 focus:border-indigo-500 text-white rounded-lg p-2 text-center font-bold outline-none transition-colors">
-                    </div>
-                    <button onclick="applyCustomMerge()" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg shadow-indigo-500/25">
-                        تنفيذ الدمج المخصص
-                    </button>
-                </div>
-                
-                <div class="flex items-center gap-3">
-                    <div class="h-px bg-gray-700 flex-grow"></div>
-                    <span class="text-xs font-bold text-gray-500">أو</span>
-                    <div class="h-px bg-gray-700 flex-grow"></div>
-                </div>
-
-                <button onclick="applyAutoSequentialMerge()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> دمج تلقائي بالتسلسل
-                </button>
-                <p class="text-[10px] text-gray-400 text-center mt-1">سيدمج كل صورتين متتاليتين تلقائياً (1 مع 2، ثم 3 مع 4..)</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- إعدادات المشروع -->
-    <div id="projectSettingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col transform transition-all scale-100">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-gear text-indigo-400"></i> إعدادات المشروع</h3>
-                <button onclick="closeModal('projectSettingsModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-6 flex flex-col gap-5 overflow-y-auto max-h-[70vh] touch-scroll-container">
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">إعدادات الصوت للدمج:</label>
-                    <div class="flex items-center w-full text-xs font-medium p-1 bg-gray-900 rounded-xl border border-gray-700">
+                <!-- إعدادات الصوت العامة -->
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                    <h4 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-volume-high ml-1"></i> دمج الصوت للفيديو النهائي</h4>
+                    <div class="flex items-center w-full text-xs">
                         <input type="radio" name="audioMode" id="modeMusicOnly" value="musicOnly" class="hidden custom-radio" checked>
-                        <label for="modeMusicOnly" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200">
+                        <label for="modeMusicOnly" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
                             الموسيقى فقط
                         </label>
                         <input type="radio" name="audioMode" id="modeMix" value="mix" class="hidden custom-radio">
-                        <label for="modeMix" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200">
-                            فيديو + موسيقى
+                        <label for="modeMix" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            دمج الفيديوهات والموسيقى
                         </label>
                     </div>
                 </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">شكل واجهة المحرر (Layout):</label>
-                    <select id="layoutModeSelect" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm cursor-pointer transition-colors">
-                        <option value="auto">تلقائي (حسب الشاشة)</option>
-                        <option value="desktop">لابتوب (أفقي)</option>
-                        <option value="mobile">هاتف (عمودي)</option>
-                    </select>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">أبعاد الفيديو (Aspect Ratio):</label>
-                    <select id="aspectRatioSelect" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm cursor-pointer transition-colors">
-                        <option value="16:9">16:9 (شاشات عرض ويوتيوب)</option>
-                        <option value="9:16">9:16 (هواتف، ريلز، تيك توك)</option>
-                        <option value="1:1">1:1 (مربع انستغرام)</option>
-                        <option value="4:3">4:3 (كلاسيكي)</option>
-                    </select>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">دقة التصدير (Resolution):</label>
-                    <select id="resolutionSelect" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm cursor-pointer transition-colors">
-                        <option value="1080">1080p (عالية الدقة FHD)</option>
-                        <option value="720" selected>720p (قياسية HD)</option>
-                        <option value="480">480p (اقتصادية SD)</option>
-                    </select>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">معدل الإطارات (FPS):</label>
-                    <select id="fpsSelect" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm cursor-pointer transition-colors">
-                        <option value="60" selected>60 FPS (حركة ناعمة جداً)</option>
-                        <option value="30">30 FPS (قياسي)</option>
-                        <option value="24">24 FPS (سينمائي)</option>
-                    </select>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">إطار الشاشة (Frame):</label>
-                    <select id="frameSelect" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm cursor-pointer transition-colors">
-                        <option value="none">بدون إطار</option>
-                        <option value="cinematic">سينمائي (حواف سوداء)</option>
-                        <option value="polaroid">بولارويد (إطار أبيض)</option>
-                        <option value="neon">نيون (إضاءة بنفسجية)</option>
-                        <option value="golden">ذهبي (فاخر)</option>
-                    </select>
-                </div>
             </div>
-            <div class="bg-gray-900/50 p-5 border-t border-gray-700/50">
-                <button id="applyProjectSettingsBtn" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/25 flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-check"></i> حفظ وإغلاق
-                </button>
-            </div>
-        </div>
-    </div>
 
-    <!-- نافذة إعدادات الشريحة النصية -->
-    <div id="textSlideModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-pen-nib text-indigo-400"></i> تصميم الشريحة النصية</h3>
-                <button onclick="closeModal('textSlideModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-6 flex flex-col gap-5 overflow-y-auto max-h-[70vh] touch-scroll-container">
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">النص (اتركه فارغاً لشريحة ملونة فقط):</label>
-                    <textarea id="slideTextInput" rows="4" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl p-4 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm leading-relaxed resize-none" placeholder="اكتب نصاً معبراً هنا..."></textarea>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-bold text-indigo-300 ml-1">لون الخلفية:</label>
-                        <div class="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-xl p-2.5">
-                            <input type="color" id="slideBgColorInput" class="w-8 h-8 rounded-md cursor-pointer border-none p-0">
-                            <span class="text-xs font-mono text-gray-300 tracking-wider" id="bgHexDisplay">#374151</span>
-                        </div>
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-bold text-indigo-300 ml-1">لون النص:</label>
-                        <div class="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-xl p-2.5">
-                            <input type="color" id="slideTextColorInput" class="w-8 h-8 rounded-md cursor-pointer border-none p-0">
-                            <span class="text-xs font-mono text-gray-300 tracking-wider" id="textHexDisplay">#ffffff</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">محاذاة النص:</label>
-                    <div class="flex items-center w-full text-xs font-medium p-1 bg-gray-900 rounded-xl border border-gray-700">
-                        <input type="radio" name="textAlign" id="alignRight" value="right" class="hidden custom-radio">
-                        <label for="alignRight" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200"><i class="fa-solid fa-align-right mr-1"></i> يمين</label>
-                        
-                        <input type="radio" name="textAlign" id="alignCenter" value="center" class="hidden custom-radio" checked>
-                        <label for="alignCenter" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200"><i class="fa-solid fa-align-center mr-1"></i> وسط</label>
-                        
-                        <input type="radio" name="textAlign" id="alignLeft" value="left" class="hidden custom-radio">
-                        <label for="alignLeft" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200"><i class="fa-solid fa-align-left mr-1"></i> يسار</label>
-                    </div>
-                </div>
-                <div class="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
-                    <div class="flex justify-between text-xs font-bold text-indigo-300">
-                        <label>حجم الخط</label>
-                        <span id="fontSizeDisplay" class="bg-gray-800 px-2 py-0.5 rounded text-gray-200">60px</span>
-                    </div>
-                    <input type="range" id="slideFontSizeInput" min="20" max="200" step="5" value="60" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            <!-- الشريط الزمني (Timeline) -->
+            <div class="flex-grow p-4 flex flex-col gap-2 overflow-y-auto" id="timelineContainer">
+                <div class="text-center text-gray-500 text-sm mt-8" id="emptyTimelineMsg">
+                    <i class="fa-solid fa-arrow-up block text-2xl mb-2 opacity-50"></i>
+                    أضف ملفات وابدأ المونتاج
                 </div>
             </div>
-            <div class="bg-gray-900/50 p-5 border-t border-gray-700/50">
-                <button onclick="applyTextSlideSettings()" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/25 flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-check"></i> حفظ الشريحة
-                </button>
-            </div>
-        </div>
-    </div>
 
-    <!-- نافذة المدة الزمنية -->
-    <div id="durationModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden flex flex-col">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-stopwatch text-cyan-400"></i> وقت العرض</h3>
-                <button onclick="closeModal('durationModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-6">
-                <label class="block text-xs font-bold text-cyan-300 mb-3 text-center">مدة الظهور (بالثواني):</label>
-                <div class="relative flex items-center justify-center">
-                    <input type="number" id="quickDurationInput" min="0.5" max="300" step="0.5" class="w-32 bg-gray-900 border-2 border-gray-700 focus:border-cyan-500 text-white rounded-2xl p-4 text-center text-3xl font-black outline-none transition-colors shadow-inner">
-                    <span class="absolute left-[calc(50%+45px)] text-gray-500 font-bold">s</span>
-                </div>
-            </div>
-            <div class="bg-gray-900/50 p-5 border-t border-gray-700/50">
-                <button onclick="applyDuration()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/25 flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-check"></i> ضبط الوقت
-                </button>
-            </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
-    <!-- نافذة الانتقالات (تم توسيعها لاستيعاب التأثيرات الجديدة) -->
-    <div id="transitionModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i> تأثير الدخول</h3>
-                <button onclick="closeModal('transitionModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+    <!-- نافذة تعديل المقطع المنبثقة (Modal) -->
+    <div id="clipSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-sliders ml-2 text-indigo-400"></i> إعدادات المقطع</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
             </div>
-            <div class="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto touch-scroll-container">
-                <button onclick="applyTransition('none')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-ban text-gray-400 text-xl"></i></div> بدون
-                </button>
-                <button onclick="applyTransition('fade')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-blue-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-droplet text-blue-400 text-xl"></i></div> تلاشي
-                </button>
-                <button onclick="applyTransition('push')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-emerald-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-arrow-right-to-bracket text-emerald-400 text-xl"></i></div> دفع
-                </button>
-                <button onclick="applyTransition('fly_in')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-amber-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-plane-up text-amber-400 text-xl"></i></div> طيران
-                </button>
-                <button onclick="applyTransition('split')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-rose-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-arrows-left-right-to-line text-rose-400 text-xl"></i></div> انقسام
-                </button>
-                <button onclick="applyTransition('reveal')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-indigo-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-circle-dot text-indigo-400 text-xl"></i></div> ظهور
-                </button>
-                
-                <!-- التأثيرات الجديدة -->
-                <button onclick="applyTransition('morph')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-cyan-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-hurricane text-cyan-400 text-xl"></i></div> مورف
-                </button>
-                <button onclick="applyTransition('wipe')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-orange-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-right-long text-orange-400 text-xl"></i></div> مسح
-                </button>
-                <button onclick="applyTransition('zoom_in')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-fuchsia-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-fuchsia-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-magnifying-glass-plus text-fuchsia-400 text-xl"></i></div> تكبير
-                </button>
-                <button onclick="applyTransition('spin')" class="bg-gray-900 hover:bg-gray-700 border border-gray-700 hover:border-lime-500/50 text-gray-300 py-4 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-3 group">
-                    <div class="w-12 h-12 rounded-full bg-lime-500/10 flex items-center justify-center group-hover:scale-110 transition-transform"><i class="fa-solid fa-arrows-spin text-lime-400 text-xl"></i></div> دوران
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- نافذة إعدادات الصورة (التمطيط) -->
-    <div id="clipSettingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
-            <div class="bg-gray-900/50 p-5 border-b border-gray-700/50 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-expand text-emerald-400"></i> أبعاد الصورة</h3>
-                <button onclick="closeModal('clipSettingsModal')" class="text-gray-400 hover:text-rose-400 bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-6 flex flex-col gap-6">
-                <div class="space-y-2.5">
-                    <label class="block text-xs font-bold text-emerald-300 ml-1">طريقة ملء الشاشة:</label>
-                    <div class="flex items-center w-full text-xs font-medium p-1 bg-gray-900 rounded-xl border border-gray-700">
+            <div class="p-5 flex flex-col gap-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">طريقة العرض (قص الزوائد):</label>
+                    <div class="flex items-center w-full text-xs">
                         <input type="radio" name="clipFitMode" id="clipCover" value="cover" class="hidden custom-radio">
-                        <label for="clipCover" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200">تغطية</label>
-                        
+                        <label for="clipCover" class="flex-1 text-center py-2 border border-gray-600 rounded-r-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            قص (Cover)
+                        </label>
                         <input type="radio" name="clipFitMode" id="clipContain" value="contain" class="hidden custom-radio">
-                        <label for="clipContain" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200">احتواء</label>
-                        
+                        <label for="clipContain" class="flex-1 text-center py-2 border-y border-gray-600 cursor-pointer transition text-gray-300 bg-gray-800">
+                            احتواء كامل
+                        </label>
                         <input type="radio" name="clipFitMode" id="clipStretch" value="stretch" class="hidden custom-radio">
-                        <label for="clipStretch" class="flex-1 text-center py-2.5 rounded-lg cursor-pointer transition-all text-gray-400 hover:text-gray-200">تمطيط</label>
+                        <label for="clipStretch" class="flex-1 text-center py-2 border-y border-l border-gray-600 rounded-l-md cursor-pointer transition text-gray-300 bg-gray-800">
+                            تمطيط
+                        </label>
                     </div>
                 </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-gray-400 mb-2">
+                        <label>تكبير / تصغير (Zoom):</label>
+                        <span id="zoomValueDisplay">100%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-magnifying-glass-minus text-gray-500"></i>
+                        <input type="range" id="clipZoomInput" min="0.5" max="3" step="0.1" value="1" class="flex-grow h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        <i class="fa-solid fa-magnifying-glass-plus text-gray-500"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-2">التدوير (Rotate):</label>
+                    <button id="clipRotateBtn" class="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2 rounded-lg transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> تدوير 90 درجة
+                    </button>
+                </div>
+                <div id="durationControlGroup">
+                    <label class="block text-xs font-bold text-gray-400 mb-2">مدة الظهور (ثواني):</label>
+                    <input type="number" id="clipDurationInput" min="1" max="60" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-2 text-center">
+                </div>
             </div>
-            <div class="bg-gray-900/50 p-5 border-t border-gray-700/50">
-                <button onclick="closeModal('clipSettingsModal')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/25 flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-check"></i> حفظ الأبعاد
-                </button>
+            <div class="bg-gray-900 p-4 border-t border-gray-700 flex gap-3">
+                <button id="saveModalBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-bold transition">تم التعديل</button>
+                <button id="deleteClipBtn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold transition"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('previewCanvas');
-        const canvasContainer = document.getElementById('canvasContainer');
         const ctx = canvas.getContext('2d');
-        
-        let defaultWidth = 1280;
-        let defaultHeight = 720;
-        let projectAspectRatio = '16:9';
-        let projectResolution = 720; 
-        let projectFrame = 'none'; 
-        let projectFPS = 60; 
-        let projectCodec = 'auto';
-        let layoutMode = 'auto'; 
+        const defaultWidth = canvas.width;  // 1280
+        const defaultHeight = canvas.height; // 720
 
         let timeline = []; 
         let backgroundAudio = null; 
@@ -519,8 +235,9 @@
 
         let audioCtx;
         let destStream;
-        let silentOsc; 
+        let silentOsc; // موجة صامتة لضمان استمرار الصوت
 
+        // UI Elements
         const mediaInput = document.getElementById('mediaInput');
         const audioInput = document.getElementById('audioInput');
         const timelineContainer = document.getElementById('timelineContainer');
@@ -530,270 +247,29 @@
         const stopBtn = document.getElementById('stopBtn');
         const timeDisplay = document.getElementById('timeDisplay');
         const exportBtn = document.getElementById('exportBtn');
-        const clearAllBtn = document.getElementById('clearAllBtn');
-        const docLoadingIndicator = document.getElementById('docLoadingIndicator');
-        const openMergeModalBtn = document.getElementById('openMergeModalBtn');
         
-        function openModal(id) {
-            document.getElementById(id).classList.remove('hidden');
-            document.getElementById(id).classList.add('flex');
-        }
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-            document.getElementById(id).classList.remove('flex');
-            renderTimelineUI();
-        }
+        // Modal & Overlay Elements
+        const clickBlocker = document.getElementById('clickBlocker');
+        const exportOverlay = document.getElementById('exportOverlay');
+        const processingUI = document.getElementById('processingUI');
+        const doneUI = document.getElementById('doneUI');
+        const exportProgressBar = document.getElementById('exportProgressBar');
+        const exportProgressText = document.getElementById('exportProgressText');
+        const finalDownloadBtn = document.getElementById('finalDownloadBtn');
+        const finalShareBtn = document.getElementById('finalShareBtn');
+        const finalCloseBtn = document.getElementById('finalCloseBtn');
 
-        openMergeModalBtn.addEventListener('click', () => {
-            if (timeline.length < 2) {
-                alert("يجب أن يكون لديك على الأقل شريحتين أو عنصرين للدمج.");
-                return;
-            }
-            openModal('mergeModal');
-        });
-
-        async function executeMerge(idx1, idx2) {
-            if(idx1 < 0 || idx2 < 0 || idx1 >= timeline.length || idx2 >= timeline.length || idx1 === idx2) {
-                alert("أرقام الشرائح غير صحيحة."); return null;
-            }
-
-            const item1 = timeline[idx1];
-            const item2 = timeline[idx2];
-
-            const tc1 = document.createElement('canvas');
-            tc1.width = defaultWidth / 2; tc1.height = defaultHeight;
-            const ctx1 = tc1.getContext('2d');
-            
-            const tc2 = document.createElement('canvas');
-            tc2.width = defaultWidth / 2; tc2.height = defaultHeight;
-            const ctx2 = tc2.getContext('2d');
-
-            drawMedia(ctx1, item1, defaultWidth / 2, defaultHeight, 1);
-            drawMedia(ctx2, item2, defaultWidth / 2, defaultHeight, 1);
-
-            const outCanvas = document.createElement('canvas');
-            outCanvas.width = defaultWidth; outCanvas.height = defaultHeight;
-            const outCtx = outCanvas.getContext('2d');
-            
-            outCtx.drawImage(tc1, defaultWidth / 2, 0); 
-            outCtx.drawImage(tc2, 0, 0);                
-
-            const dataUrl = outCanvas.toDataURL('image/png', 0.9);
-            const img = new Image();
-            img.src = dataUrl;
-            await new Promise(r => img.onload = r);
-
-            const mergedItem = {
-                id: Date.now() + Math.random().toString(),
-                type: 'image',
-                name: `مدمج (${idx1+1} و ${idx2+1})`,
-                element: img,
-                duration: Math.max(item1.duration, item2.duration) || 5, 
-                url: dataUrl,
-                rotation: 0, scale: 1, fitMode: 'contain', transitionType: 'fade'
-            };
-
-            return mergedItem;
-        }
-
-        async function applyCustomMerge() {
-            const val1 = parseInt(document.getElementById('mergeIdx1').value);
-            const val2 = parseInt(document.getElementById('mergeIdx2').value);
-            
-            if(isNaN(val1) || isNaN(val2)) { alert('يرجى إدخال أرقام صحيحة من الشريط الزمني'); return; }
-            
-            const i1 = val1 - 1;
-            const i2 = val2 - 1;
-            
-            const mergedItem = await executeMerge(i1, i2);
-            if(mergedItem) {
-                const maxI = Math.max(i1, i2);
-                const minI = Math.min(i1, i2);
-                timeline.splice(maxI, 1);
-                timeline.splice(minI, 1);
-                timeline.splice(minI, 0, mergedItem);
-                
-                document.getElementById('mergeIdx1').value = '';
-                document.getElementById('mergeIdx2').value = '';
-                closeModal('mergeModal');
-                editingIndex = minI;
-                renderTimelineUI();
-                redrawCurrentOrFirst();
-            }
-        }
-
-        async function applyAutoSequentialMerge() {
-            if(timeline.length < 2) {
-                alert("لا يوجد عدد كافٍ من العناصر للدمج."); return;
-            }
-            
-            document.getElementById('mergeModal').classList.add('opacity-50', 'pointer-events-none');
-            
-            const newTimeline = [];
-            for(let i=0; i<timeline.length; i+=2) {
-                if(i+1 < timeline.length) {
-                    const mergedItem = await executeMerge(i, i+1);
-                    if(mergedItem) newTimeline.push(mergedItem);
-                } else {
-                    newTimeline.push(timeline[i]); 
-                }
-            }
-            
-            timeline = newTimeline;
-            
-            document.getElementById('mergeModal').classList.remove('opacity-50', 'pointer-events-none');
-            closeModal('mergeModal');
-            editingIndex = 0;
-            renderTimelineUI();
-            redrawCurrentOrFirst();
-        }
-
-        function applyLayoutMode() {
-            const mainLayout = document.getElementById('mainLayout');
-            const canvasSection = document.getElementById('canvasSection');
-            const timelineSection = document.getElementById('timelineSection');
-
-            mainLayout.className = 'flex-grow flex overflow-hidden min-h-0';
-            canvasSection.className = 'w-full flex flex-col items-center justify-center p-4 lg:p-6 relative shrink-0';
-            timelineSection.className = 'bg-gray-800/30 backdrop-blur-md border-gray-700/50 flex flex-col overflow-hidden min-h-0';
-
-            if (layoutMode === 'auto') {
-                mainLayout.classList.add('flex-col', 'lg:flex-row');
-                canvasSection.classList.add('h-[35vh]', 'min-h-[200px]', 'lg:h-auto', 'lg:flex-1');
-                timelineSection.classList.add('w-full', 'lg:w-[380px]', 'flex-1', 'lg:flex-none', 'border-t', 'lg:border-t-0', 'lg:border-r');
-            } else if (layoutMode === 'mobile') {
-                mainLayout.classList.add('flex-col');
-                canvasSection.classList.add('h-[35vh]', 'min-h-[200px]');
-                timelineSection.classList.add('w-full', 'flex-1', 'border-t');
-            } else if (layoutMode === 'desktop') {
-                mainLayout.classList.add('flex-row');
-                canvasSection.classList.add('h-auto', 'flex-1');
-                timelineSection.classList.add('w-[380px]', 'flex-none', 'border-r');
-            }
-            
-            setTimeout(() => { if(timelineContainer) timelineContainer.scrollTop = timelineContainer.scrollHeight; }, 100);
-        }
-
-        applyLayoutMode();
-
-        clearAllBtn.addEventListener('click', () => {
-            if (timeline.length === 0) return;
-            
-            if (confirm("هل أنت متأكد من مسح جميع المقاطع والبدء من جديد؟")) {
-                if (isPlaying) stopPlayback();
-                
-                timeline.forEach(item => {
-                    if (item.url && !item.url.startsWith('data:')) {
-                        URL.revokeObjectURL(item.url);
-                    }
-                });
-                
-                timeline = [];
-                editingIndex = -1;
-                
-                ctx.clearRect(0, 0, defaultWidth, defaultHeight);
-                ctx.fillStyle = '#000'; 
-                ctx.fillRect(0, 0, defaultWidth, defaultHeight);
-                
-                drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
-                document.getElementById('emptyStateMsg').style.display = 'flex';
-                
-                renderTimelineUI();
-            }
-        });
-
-        document.getElementById('projectSettingsBtn').addEventListener('click', () => {
-            document.getElementById('aspectRatioSelect').value = projectAspectRatio;
-            document.getElementById('resolutionSelect').value = projectResolution;
-            document.getElementById('frameSelect').value = projectFrame;
-            document.getElementById('fpsSelect').value = projectFPS;
-            document.getElementById('layoutModeSelect').value = layoutMode;
-            openModal('projectSettingsModal');
-        });
-        
-        document.getElementById('applyProjectSettingsBtn').addEventListener('click', () => {
-            projectAspectRatio = document.getElementById('aspectRatioSelect').value;
-            projectResolution = parseInt(document.getElementById('resolutionSelect').value);
-            projectFrame = document.getElementById('frameSelect').value;
-            projectFPS = parseInt(document.getElementById('fpsSelect').value);
-            layoutMode = document.getElementById('layoutModeSelect').value;
-            
-            let ratioParts = projectAspectRatio.split(':');
-            let wRatio = parseInt(ratioParts[0]);
-            let hRatio = parseInt(ratioParts[1]);
-
-            if (wRatio >= hRatio) {
-                defaultHeight = projectResolution;
-                defaultWidth = Math.round(defaultHeight * (wRatio / hRatio));
-            } else {
-                defaultWidth = projectResolution;
-                defaultHeight = Math.round(defaultWidth * (hRatio / wRatio));
-            }
-
-            canvas.width = defaultWidth;
-            canvas.height = defaultHeight;
-            canvasContainer.style.aspectRatio = projectAspectRatio.replace(':', '/');
-            
-            applyLayoutMode();
-            redrawCurrentOrFirst();
-            closeModal('projectSettingsModal');
-        });
-
-        document.getElementById('slideBgColorInput').addEventListener('input', e => { document.getElementById('bgHexDisplay').innerText = e.target.value; });
-        document.getElementById('slideTextColorInput').addEventListener('input', e => { document.getElementById('textHexDisplay').innerText = e.target.value; });
-        document.getElementById('slideFontSizeInput').addEventListener('input', e => { document.getElementById('fontSizeDisplay').innerText = e.target.value + 'px'; });
-
-        document.getElementById('addTextSlideBtn').addEventListener('click', () => {
-            if (isPlaying) stopPlayback();
-            const newTextSlide = {
-                id: Date.now().toString(),
-                type: 'textSlide',
-                name: 'شريحة نصية',
-                duration: 4,
-                text: 'اكتب نصاً معبراً...',
-                bgColor: '#1e293b',
-                textColor: '#ffffff',
-                textAlign: 'center',
-                fontSize: 60,
-                transitionType: 'fade'
-            };
-            timeline.push(newTextSlide);
-            editingIndex = timeline.length - 1;
-            openTextSlideEditor(editingIndex);
-        });
-
-        function openTextSlideEditor(index) {
-            editingIndex = index;
-            const item = timeline[index];
-            document.getElementById('slideTextInput').value = item.text || '';
-            document.getElementById('slideBgColorInput').value = item.bgColor || '#1e293b';
-            document.getElementById('bgHexDisplay').innerText = item.bgColor || '#1e293b';
-            document.getElementById('slideTextColorInput').value = item.textColor || '#ffffff';
-            document.getElementById('textHexDisplay').innerText = item.textColor || '#ffffff';
-            document.getElementsByName('textAlign').forEach(r => r.checked = (r.value === (item.textAlign || 'center')));
-            document.getElementById('slideFontSizeInput').value = item.fontSize || 60;
-            document.getElementById('fontSizeDisplay').innerText = (item.fontSize || 60) + 'px';
-            openModal('textSlideModal');
-        }
-
-        function applyTextSlideSettings() {
-            if (editingIndex >= 0 && timeline[editingIndex].type === 'textSlide') {
-                const item = timeline[editingIndex];
-                item.text = document.getElementById('slideTextInput').value;
-                item.bgColor = document.getElementById('slideBgColorInput').value;
-                item.textColor = document.getElementById('slideTextColorInput').value;
-                item.textAlign = document.querySelector('input[name="textAlign"]:checked').value;
-                item.fontSize = parseInt(document.getElementById('slideFontSizeInput').value);
-                
-                if(item.text.trim().length > 0) {
-                    item.name = item.text.split('\n')[0].substring(0, 15) + '...';
-                } else {
-                    item.name = 'شريحة فارغة';
-                }
-                redrawCurrentOrFirst();
-                closeModal('textSlideModal');
-            }
-        }
+        // Clip Settings Modal Elements
+        const modal = document.getElementById('clipSettingsModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const saveModalBtn = document.getElementById('saveModalBtn');
+        const deleteClipBtn = document.getElementById('deleteClipBtn');
+        const clipFitRadios = document.getElementsByName('clipFitMode');
+        const clipZoomInput = document.getElementById('clipZoomInput');
+        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
+        const clipRotateBtn = document.getElementById('clipRotateBtn');
+        const clipDurationInput = document.getElementById('clipDurationInput');
+        const durationControlGroup = document.getElementById('durationControlGroup');
 
         function getAudioMode() { return document.querySelector('input[name="audioMode"]:checked').value; }
         function formatTime(seconds) {
@@ -802,372 +278,87 @@
             return `${m}:${s}`;
         }
 
-        function wrapTextAndDraw(ctx, text, x, y, maxWidth, lineHeight, align) {
-            const lines = text.split('\n');
-            let totalHeight = 0;
-            let drawOperations = [];
-
-            lines.forEach(paragraph => {
-                let words = paragraph.split(' ');
-                let line = '';
-                for(let n = 0; n < words.length; n++) {
-                    let testLine = line + words[n] + ' ';
-                    let metrics = ctx.measureText(testLine);
-                    if (metrics.width > maxWidth && n > 0) {
-                        drawOperations.push({text: line, yOffset: totalHeight});
-                        line = words[n] + ' ';
-                        totalHeight += lineHeight;
-                    } else {
-                        line = testLine;
-                    }
-                }
-                drawOperations.push({text: line, yOffset: totalHeight});
-                totalHeight += lineHeight;
-            });
-
-            let startY = y - (totalHeight / 2) + (lineHeight / 2);
-            drawOperations.forEach(op => {
-                ctx.fillText(op.text, x, startY + op.yOffset);
-            });
-        }
-
-        function drawFrame(ctx, cw, ch, type) {
-            if (type === 'none') return;
-            ctx.save();
-            if (type === 'cinematic') {
-                ctx.fillStyle = '#000000';
-                let bar = ch * 0.12; 
-                ctx.fillRect(0, 0, cw, bar);
-                ctx.fillRect(0, ch - bar, cw, bar);
-            } 
-            else if (type === 'polaroid') {
-                ctx.fillStyle = '#ffffff';
-                let border = Math.min(cw, ch) * 0.05;
-                ctx.fillRect(0, 0, cw, border);
-                ctx.fillRect(0, 0, border, ch);
-                ctx.fillRect(cw - border, 0, border, ch);
-                ctx.fillRect(0, ch - border * 3.5, cw, border * 3.5);
-            }
-            else if (type === 'neon') {
-                let lw = Math.max(5, Math.min(cw, ch) * 0.015);
-                ctx.strokeStyle = '#bc13fe'; 
-                ctx.lineWidth = lw;
-                ctx.shadowBlur = lw * 3;
-                ctx.shadowColor = '#bc13fe';
-                ctx.strokeRect(lw, lw, cw - lw * 2, ch - lw * 2);
-                ctx.shadowBlur = 0; 
-            }
-            else if (type === 'golden') {
-                let lw = Math.max(10, Math.min(cw, ch) * 0.03);
-                let gradient = ctx.createLinearGradient(0, 0, cw, ch);
-                gradient.addColorStop(0, '#BF953F');
-                gradient.addColorStop(0.25, '#FCF6BA');
-                gradient.addColorStop(0.5, '#B38728');
-                gradient.addColorStop(0.75, '#FBF5B7');
-                gradient.addColorStop(1, '#AA771C');
-                ctx.strokeStyle = gradient;
-                ctx.lineWidth = lw;
-                ctx.strokeRect(lw/2, lw/2, cw - lw, ch - lw);
-                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-                ctx.lineWidth = lw * 0.1;
-                ctx.strokeRect(lw + 5, lw + 5, cw - (lw*2 + 10), ch - (lw*2 + 10));
-            }
-            ctx.restore();
-        }
-
-        function drawMedia(ctx, item, cw, ch, transitionProgress = 1) {
+        // رسم الميديا على الكانفاس
+        function drawMedia(ctx, item, cw, ch) {
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, cw, ch);
-            const trans = item.transitionType || 'none';
+            
+            const img = item.element;
+            const rot = item.rotation || 0;
+            const scale = item.scale || 1.0;
+            const mode = item.fitMode || 'stretch'; // الوضع التلقائي تمطيط
 
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
+            let iw = img.videoWidth || img.width;
+            let ih = img.videoHeight || img.height;
+            if (!iw || !ih) return;
+
+            let calcW = iw; let calcH = ih;
+            if (rot === 90 || rot === 270) { calcW = ih; calcH = iw; }
+
+            let drawW, drawH;
+            if (mode === 'stretch') {
+                if (rot === 90 || rot === 270) { drawW = ch; drawH = cw; } 
+                else { drawW = cw; drawH = ch; }
+            } else {
+                const hRatio = cw / calcW; const vRatio = ch / calcH;
+                const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
+                drawW = iw * ratio; drawH = ih * ratio;
+            }
+
+            drawW *= scale; drawH *= scale;
 
             ctx.save();
             ctx.translate(cw / 2, ch / 2);
-
-            // تطبيق التأثيرات والانتقالات بما فيها (مورف وغيرها)
-            if (transitionProgress < 1) {
-                let t = transitionProgress;
-                if (trans === 'fade') {
-                    ctx.globalAlpha = t;
-                } else if (trans === 'push') {
-                    ctx.translate(cw * (1 - t), 0);
-                } else if (trans === 'fly_in') {
-                    ctx.scale(t, t);
-                    ctx.translate(0, ch * (1 - t));
-                } else if (trans === 'split') {
-                    ctx.beginPath();
-                    ctx.rect(-cw/2, -ch/2 * t, cw, ch * t);
-                    ctx.clip();
-                } else if (trans === 'reveal') {
-                    ctx.beginPath();
-                    ctx.arc(0, 0, Math.max(cw, ch) * t, 0, Math.PI * 2);
-                    ctx.clip();
-                } else if (trans === 'morph') {
-                    // مورف محاكي: شفافية + تكبير تدريجي + فلتر تمويه خفيف
-                    ctx.globalAlpha = t;
-                    let scale = 1.2 - (0.2 * t);
-                    ctx.scale(scale, scale);
-                    ctx.filter = `blur(${(1 - t) * 10}px)`;
-                } else if (trans === 'wipe') {
-                    // مسح الصورة
-                    ctx.beginPath();
-                    ctx.rect(-cw/2, -ch/2, cw * t, ch);
-                    ctx.clip();
-                } else if (trans === 'zoom_in') {
-                    // تكبير من الصفر
-                    ctx.globalAlpha = t;
-                    ctx.scale(t, t);
-                } else if (trans === 'spin') {
-                    // دوران وتلاشي
-                    ctx.globalAlpha = t;
-                    ctx.rotate((1 - t) * Math.PI * 2);
-                    ctx.scale(t, t);
-                }
-            }
-
-            if (item.type === 'textSlide') {
-                ctx.fillStyle = item.bgColor || '#1e293b';
-                ctx.fillRect(-cw/2, -ch/2, cw, ch);
-
-                if (item.text && item.text.trim().length > 0) {
-                    ctx.fillStyle = item.textColor || '#ffffff';
-                    ctx.font = `bold ${item.fontSize || 60}px system-ui, -apple-system, sans-serif`;
-                    ctx.textBaseline = 'middle';
-                    
-                    let align = item.textAlign || 'center';
-                    ctx.textAlign = align;
-
-                    let startX = 0;
-                    let maxWidth = cw - 80;
-                    if (align === 'right') { startX = (cw / 2) - 40; }
-                    else if (align === 'left') { startX = -(cw / 2) + 40; }
-
-                    wrapTextAndDraw(ctx, item.text, startX, 0, maxWidth, (item.fontSize || 60) * 1.5, align);
-                }
-            } else {
-                const img = item.element;
-                const rot = item.rotation || 0;
-                const scale = item.scale || 1.0;
-                const mode = item.fitMode || 'stretch'; 
-
-                let iw = img.videoWidth || img.width;
-                let ih = img.videoHeight || img.height;
-                
-                if (iw && ih) {
-                    let calcW = iw; let calcH = ih;
-                    if (rot === 90 || rot === 270) { calcW = ih; calcH = iw; }
-
-                    let drawW, drawH;
-                    if (mode === 'stretch') {
-                        if (rot === 90 || rot === 270) { drawW = ch; drawH = cw; } 
-                        else { drawW = cw; drawH = ch; }
-                    } else {
-                        const hRatio = cw / calcW; const vRatio = ch / calcH;
-                        const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
-                        drawW = iw * ratio; drawH = ih * ratio;
-                    }
-
-                    drawW *= scale; drawH *= scale;
-
-                    ctx.rotate(rot * Math.PI / 180);
-                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
-                }
-            }
-
+            ctx.rotate(rot * Math.PI / 180);
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
             ctx.restore();
         }
 
         function redrawCurrentOrFirst() {
-            if (isPlaying || timeline.length === 0) {
-                if (timeline.length === 0) {
-                    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
-                    drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
-                }
-                return;
-            }
+            if (isPlaying || timeline.length === 0) return;
             const idx = editingIndex >= 0 ? editingIndex : 0;
-            drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight, 1);
-            drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+            drawMedia(ctx, timeline[idx], defaultWidth, defaultHeight);
         }
 
+        // نظام الصوت الذكي (يمنع الهاتف من إيقاف التسجيل)
         function initAudioSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 destStream = audioCtx.createMediaStreamDestination();
+                
+                // الموجة الصامتة: تمنع مسجل الفيديو من التجمد إذا لم يكن هناك صوت
                 silentOsc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0; 
+                gain.gain.value = 0; // صامت
                 silentOsc.connect(gain);
                 gain.connect(destStream);
                 silentOsc.start();
             }
         }
 
-        async function processWordToImages(file) {
-            const defaultSettings = { rotation: 0, scale: 1, fitMode: 'contain', transitionType: 'fade' };
-            const renderContainer = document.getElementById('documentRenderContainer');
-            
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                renderContainer.innerHTML = ''; 
-                
-                await docx.renderAsync(arrayBuffer, renderContainer, null, {
-                    className: "docx-rendered-page",
-                    inWrapper: false,
-                    ignoreWidth: false,
-                    ignoreHeight: false,
-                });
-
-                const pages = renderContainer.querySelectorAll('.docx-rendered-page');
-                
-                if (pages.length === 0) {
-                    const canvas = await html2canvas(renderContainer, { scale: 3, useCORS: true });
-                    const dataUrl = canvas.toDataURL('image/png');
-                    const img = new Image(); img.src = dataUrl;
-                    await new Promise(r => img.onload = r);
-                    
-                    timeline.push({ 
-                        id: Date.now() + Math.random().toString(), type: 'image', 
-                        name: `${file.name.replace(/\.[^/.]+$/, "")} (صورة)`, element: img, 
-                        duration: 5, url: dataUrl, ...defaultSettings
-                    });
-                } else {
-                    for (let i = 0; i < pages.length; i++) {
-                        const pageElement = pages[i];
-                        const canvas = await html2canvas(pageElement, { scale: 3, useCORS: true });
-                        const dataUrl = canvas.toDataURL('image/png');
-                        
-                        const img = new Image(); img.src = dataUrl;
-                        await new Promise(r => img.onload = r);
-                        
-                        timeline.push({ 
-                            id: Date.now() + Math.random().toString(), type: 'image', 
-                            name: `${file.name.replace(/\.[^/.]+$/, "")} (ص${i+1})`, element: img, 
-                            duration: 5, url: dataUrl, ...defaultSettings
-                        });
-                    }
-                }
-            } catch (err) {
-                console.error("Word conversion error:", err);
-                alert("حدث خطأ أثناء محاولة تحويل ملف الوورد إلى صور.");
-            } finally {
-                renderContainer.innerHTML = '';
-            }
-        }
-
-        async function processExcelToImage(file) {
-            const defaultSettings = { rotation: 0, scale: 1, fitMode: 'contain', transitionType: 'fade' };
-            const renderContainer = document.getElementById('documentRenderContainer');
-            
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                
-                const htmlString = XLSX.utils.sheet_to_html(worksheet, { id: "excelTable", editable: false });
-                
-                if (!htmlString || htmlString.indexOf('<table') === -1) {
-                    alert("الملف لا يحتوي على جدول بيانات صالح.");
-                    return;
-                }
-
-                renderContainer.innerHTML = htmlString;
-                
-                const canvas = await html2canvas(renderContainer, { scale: 3, useCORS: true });
-                const dataUrl = canvas.toDataURL('image/png');
-                
-                const img = new Image(); img.src = dataUrl;
-                await new Promise(r => img.onload = r);
-                
-                timeline.push({ 
-                    id: Date.now() + Math.random().toString(), type: 'image', 
-                    name: `${file.name.replace(/\.[^/.]+$/, "")} (جدول)`, element: img, 
-                    duration: 5, url: dataUrl, ...defaultSettings
-                });
-                
-            } catch (err) {
-                console.error("Excel conversion error:", err);
-                alert("حدث خطأ أثناء محاولة تحويل ملف الاكسل إلى صورة.");
-            } finally {
-                renderContainer.innerHTML = '';
-            }
-        }
-
+        // رفع الملفات
         mediaInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-            document.getElementById('emptyStateMsg').style.display = 'none';
-            mediaInput.disabled = true;
-            
-            const hasDocOrExcel = files.some(f => f.name.endsWith('.docx') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
-            if (hasDocOrExcel) {
-                docLoadingIndicator.style.display = 'flex';
-            }
+            emptyStateMsg.style.display = 'none';
 
             for (let file of files) {
-                const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch', transitionType: 'fade' };
+                const url = URL.createObjectURL(file);
+                const id = Date.now() + Math.random().toString();
+                const defaultSettings = { rotation: 0, scale: 1, fitMode: 'stretch' };
                 
-                if (file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
-                    alert(`الملف "${file.name}" بصيغة .doc القديمة غير مدعوم للتحويل داخل المتصفح مباشرة.\n\n💡 نصيحة: قم بحفظ الملف بصيغة PDF من برنامج الوورد، ثم ارفعه هنا.`);
-                    continue; 
-                }
-
-                if (file.type === 'application/pdf') {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const viewport = page.getViewport({ scale: 3.0 }); 
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = viewport.width; tempCanvas.height = viewport.height;
-                        await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: viewport }).promise;
-
-                        const dataUrl = tempCanvas.toDataURL('image/png');
-                        const img = new Image(); img.src = dataUrl;
-                        await new Promise(r => img.onload = r);
-
-                        timeline.push({ 
-                            id: Date.now() + Math.random().toString(), type: 'image', 
-                            name: `${file.name.replace('.pdf','')} (ص${i})`, element: img, 
-                            duration: 4, url: dataUrl, ...defaultSettings
-                        });
-                    }
-                } 
-                else if (file.name.endsWith('.docx')) {
-                    await processWordToImages(file);
-                }
-                else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-                    await processExcelToImage(file);
-                }
-                else {
-                    const url = URL.createObjectURL(file);
-                    const id = Date.now() + Math.random().toString();
-                    if (file.type.startsWith('image/')) {
-                        const img = new Image(); img.src = url;
-                        await new Promise(r => img.onload = r);
-                        timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
-                    } else if (file.type.startsWith('video/')) {
-                        const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
-                        await new Promise(r => vid.onloadedmetadata = r);
-                        timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
-                    }
+                if (file.type.startsWith('image/')) {
+                    const img = new Image(); img.src = url;
+                    await new Promise(r => img.onload = r);
+                    timeline.push({ id, type: 'image', name: file.name, element: img, duration: 4, url, ...defaultSettings });
+                } else if (file.type.startsWith('video/')) {
+                    const vid = document.createElement('video'); vid.src = url; vid.crossOrigin = "anonymous"; vid.playsInline = true; vid.muted = true; 
+                    await new Promise(r => vid.onloadedmetadata = r);
+                    timeline.push({ id, type: 'video', name: file.name, element: vid, duration: vid.duration, url, ...defaultSettings });
                 }
             }
-            
-            mediaInput.disabled = false;
-            if (hasDocOrExcel) {
-                docLoadingIndicator.style.display = 'none';
-            }
-            
-            editingIndex = timeline.length - 1;
             renderTimelineUI();
-            if (!isPlaying) { redrawCurrentOrFirst(); }
-            
-            setTimeout(() => { timelineContainer.scrollTop = timelineContainer.scrollHeight; }, 100);
+            if (!isPlaying) { editingIndex = timeline.length - 1; redrawCurrentOrFirst(); }
             mediaInput.value = '';
         });
 
@@ -1177,7 +368,7 @@
             const url = URL.createObjectURL(file);
             const audio = new Audio(url); await new Promise(r => audio.onloadedmetadata = r);
             backgroundAudio = { name: file.name, element: audio, duration: audio.duration, url };
-            document.getElementById('audioUploadContainer').classList.add('border-pink-500', 'bg-gray-800');
+            document.getElementById('audioUploadContainer').classList.add('ring-2', 'ring-pink-500', 'bg-gray-700');
             document.querySelector('#audioUploadContainer span').textContent = file.name;
             document.getElementById('removeAudioBtn').classList.remove('hidden'); document.getElementById('removeAudioBtn').classList.add('flex');
             audioInput.value = '';
@@ -1186,202 +377,74 @@
         document.getElementById('removeAudioBtn').addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
             if (backgroundAudio) { URL.revokeObjectURL(backgroundAudio.url); backgroundAudio = null; }
-            document.getElementById('audioUploadContainer').classList.remove('border-pink-500', 'bg-gray-800');
+            document.getElementById('audioUploadContainer').classList.remove('ring-2', 'ring-pink-500', 'bg-gray-700');
             document.querySelector('#audioUploadContainer span').textContent = 'موسيقى خارجية';
             document.getElementById('removeAudioBtn').classList.add('hidden'); document.getElementById('removeAudioBtn').classList.remove('flex');
         });
 
-        function openDurationModal(index) {
-            editingIndex = index;
-            document.getElementById('quickDurationInput').value = timeline[index].duration;
-            openModal('durationModal');
-        }
-
-        function applyDuration() {
-            let val = parseFloat(document.getElementById('quickDurationInput').value);
-            if (val > 0 && editingIndex >= 0) {
-                timeline[editingIndex].duration = val;
-                closeModal('durationModal');
-            }
-        }
-
-        function openTransitionModal(index) {
-            editingIndex = index; openModal('transitionModal');
-        }
-
-        function applyTransition(type) {
-            if (editingIndex >= 0) {
-                timeline[editingIndex].transitionType = type;
-                closeModal('transitionModal');
-            }
-        }
-
-        document.getElementsByName('clipFitMode').forEach(radio => { 
-            radio.addEventListener('change', (e) => { 
-                if(editingIndex >= 0 && timeline[editingIndex].type !== 'textSlide') { 
-                    timeline[editingIndex].fitMode = e.target.value; redrawCurrentOrFirst(); 
-                } 
-            }); 
-        });
-
+        // الشريط الزمني
         function renderTimelineUI() {
             timelineContainer.innerHTML = '';
             if (timeline.length === 0) {
                 timelineContainer.appendChild(emptyTimelineMsg);
-                emptyTimelineMsg.style.display = 'flex'; emptyStateMsg.style.display = 'flex';
-                ctx.clearRect(0,0, defaultWidth, defaultHeight);
-                drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
-                return;
+                emptyTimelineMsg.style.display = 'block'; emptyStateMsg.style.display = 'flex';
+                ctx.clearRect(0,0, defaultWidth, defaultHeight); return;
             }
             emptyTimelineMsg.style.display = 'none';
 
             timeline.forEach((item, index) => {
-                const isActive = editingIndex === index;
                 const el = document.createElement('div');
+                el.className = `clip-item bg-gray-700 rounded-lg p-2 flex items-center gap-3 relative overflow-hidden group ${editingIndex === index ? 'active' : ''}`;
+                el.onclick = () => openClipSettings(index);
                 
-                el.className = `clip-item shrink-0 rounded-2xl p-3 flex flex-col relative group transition-all duration-300 ${isActive ? 'bg-gray-800 border border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.15)]' : 'bg-gray-800/40 border border-gray-700 hover:bg-gray-800/80 hover:border-gray-500'}`;
-                
-                const numberBadge = document.createElement('div');
-                numberBadge.className = "absolute -top-2 -right-2 bg-indigo-500 text-white text-[11px] font-black w-6 h-6 flex items-center justify-center rounded-full shadow-lg border border-gray-800 z-10";
-                numberBadge.innerText = index + 1;
-                el.appendChild(numberBadge);
-
-                el.onclick = () => {
-                    if (isPlaying) stopPlayback();
-                    editingIndex = index;
-                    redrawCurrentOrFirst();
-                    renderTimelineUI();
-                    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                };
-                
-                const topContent = document.createElement('div');
-                topContent.className = "flex items-center gap-3 w-full pointer-events-none";
-
-                let iconHTML;
+                const iconHTML = item.type === 'video' ? '<i class="fa-solid fa-video text-blue-400"></i>' : '<i class="fa-solid fa-image text-emerald-400"></i>';
                 const thumb = document.createElement('div');
-                thumb.className = "w-16 h-12 rounded-lg shrink-0 flex items-center justify-center overflow-hidden relative border border-gray-600/50 shadow-md";
-                
-                if (item.type === 'image') {
-                    if(item.name.includes('(جدول)')) iconHTML = '<i class="fa-solid fa-table text-emerald-400"></i>';
-                    else iconHTML = '<i class="fa-solid fa-image text-indigo-400"></i>';
-                    
+                thumb.className = "w-16 h-12 bg-black rounded shrink-0 flex items-center justify-center overflow-hidden relative";
+                if(item.type === 'image') {
                     const imgThumb = document.createElement('img'); imgThumb.src = item.url;
-                    imgThumb.className = "w-full h-full object-cover opacity-90"; thumb.appendChild(imgThumb);
-                } else if (item.type === 'video') {
-                    iconHTML = '<i class="fa-solid fa-video text-blue-400"></i>';
-                    thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`;
-                    thumb.className += " bg-gray-900";
-                } else if (item.type === 'textSlide') {
-                    iconHTML = '<i class="fa-solid fa-font text-purple-400"></i>';
-                    thumb.style.backgroundColor = item.bgColor || '#1e293b';
-                    thumb.innerHTML = `<span class="text-xs font-bold truncate px-1 drop-shadow-md" style="color: ${item.textColor || '#fff'}">${item.text ? 'T' : 'فارغ'}</span>`;
-                }
-
-                // إضافة الأسماء الجديدة للانتقالات في الواجهة
-                let transName = "بدون انتقال";
-                if(item.transitionType === 'fade') transName = "تلاشي";
-                else if(item.transitionType === 'push') transName = "دفع";
-                else if(item.transitionType === 'fly_in') transName = "طيران";
-                else if(item.transitionType === 'split') transName = "انقسام";
-                else if(item.transitionType === 'reveal') transName = "ظهور";
-                else if(item.transitionType === 'morph') transName = "مورف";
-                else if(item.transitionType === 'wipe') transName = "مسح";
-                else if(item.transitionType === 'zoom_in') transName = "تكبير";
-                else if(item.transitionType === 'spin') transName = "دوران";
+                    imgThumb.className = "w-full h-full object-cover opacity-80"; thumb.appendChild(imgThumb);
+                } else { thumb.innerHTML = `<i class="fa-solid fa-film text-gray-500 text-sm"></i>`; }
 
                 const details = document.createElement('div');
                 details.className = "flex-grow min-w-0 pointer-events-none";
-                details.innerHTML = `
-                    <h4 class="text-sm font-bold text-gray-100 truncate">${item.name}</h4>
-                    <div class="flex items-center gap-2 mt-1 text-[11px] text-gray-400 font-medium">
-                        <span class="bg-gray-900/50 px-2 py-0.5 rounded border border-gray-700/50"><i class="fa-regular fa-clock text-cyan-400 mr-1"></i>${formatTime(item.duration)}</span> 
-                        <span class="bg-gray-900/50 px-2 py-0.5 rounded border border-gray-700/50"><i class="fa-solid fa-wand-magic-sparkles text-purple-400 mr-1"></i>${transName}</span>
-                    </div>`;
-                
-                const iconDiv = document.createElement('div'); iconDiv.className = "w-7 h-7 rounded-full bg-gray-900/80 flex items-center justify-center pointer-events-none shadow-inner border border-gray-700 text-xs"; iconDiv.innerHTML = iconHTML;
+                details.innerHTML = `<h4 class="text-xs font-bold truncate">${item.name}</h4><p class="text-[10px] text-gray-400">${formatTime(item.duration)}</p>`;
+                const editIcon = document.createElement('div'); editIcon.className = "text-indigo-400 text-lg opacity-50 group-hover:opacity-100 transition px-2"; editIcon.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+                const iconDiv = document.createElement('div'); iconDiv.className = "w-5 flex items-center justify-center pointer-events-none"; iconDiv.innerHTML = iconHTML;
 
-                topContent.appendChild(thumb); 
-                topContent.appendChild(iconDiv); 
-                topContent.appendChild(details);
-                el.appendChild(topContent);
-
-                if (isActive) {
-                    const actionsDiv = document.createElement('div');
-                    actionsDiv.className = "flex flex-wrap items-center justify-center sm:justify-start gap-2 w-full mt-3 p-2 bg-gray-900/60 rounded-xl border border-gray-700/50 shadow-inner";
-
-                    const btnClass = "w-9 h-9 shrink-0 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-md text-sm border border-gray-600 hover:border-gray-400";
-
-                    const upBtn = document.createElement('button');
-                    upBtn.className = `${btnClass} text-yellow-400 ${index === 0 ? 'opacity-30 cursor-not-allowed hover:scale-100 hover:bg-gray-700 hover:border-gray-600' : ''}`;
-                    upBtn.title = "تحريك للأعلى"; upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
-                    upBtn.onclick = (e) => { e.stopPropagation(); if (index > 0) { const temp = timeline[index]; timeline[index] = timeline[index - 1]; timeline[index - 1] = temp; editingIndex = index - 1; renderTimelineUI(); redrawCurrentOrFirst(); } };
-
-                    const downBtn = document.createElement('button');
-                    downBtn.className = `${btnClass} text-yellow-400 ${index === timeline.length - 1 ? 'opacity-30 cursor-not-allowed hover:scale-100 hover:bg-gray-700 hover:border-gray-600' : ''}`;
-                    downBtn.title = "تحريك للأسفل"; downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
-                    downBtn.onclick = (e) => { e.stopPropagation(); if (index < timeline.length - 1) { const temp = timeline[index]; timeline[index] = timeline[index + 1]; timeline[index + 1] = temp; editingIndex = index + 1; renderTimelineUI(); redrawCurrentOrFirst(); } };
-
-                    const durationBtn = document.createElement('button');
-                    durationBtn.className = `${btnClass} text-cyan-400`;
-                    durationBtn.title = "المدة الزمنية"; durationBtn.innerHTML = '<i class="fa-solid fa-stopwatch"></i>';
-                    durationBtn.onclick = (e) => { e.stopPropagation(); openDurationModal(index); };
-
-                    const transBtn = document.createElement('button');
-                    transBtn.className = `${btnClass} text-purple-400`;
-                    transBtn.title = "تأثير الدخول"; transBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
-                    transBtn.onclick = (e) => { e.stopPropagation(); openTransitionModal(index); };
-
-                    actionsDiv.appendChild(upBtn); actionsDiv.appendChild(downBtn);
-                    actionsDiv.appendChild(durationBtn); actionsDiv.appendChild(transBtn);
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = "w-9 h-9 shrink-0 bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600 hover:text-white rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-lg text-sm";
-                    deleteBtn.title = "حذف العنصر"; deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-                    deleteBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        if(item.url && !item.url.startsWith('data:')) { URL.revokeObjectURL(item.url); }
-                        timeline.splice(index, 1);
-                        editingIndex = timeline.length > 0 ? Math.max(0, index - 1) : -1; 
-                        
-                        if(timeline.length === 0) { 
-                            ctx.clearRect(0,0,defaultWidth,defaultHeight); 
-                            ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); 
-                            drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
-                            document.getElementById('emptyStateMsg').style.display = 'flex'; 
-                        } else { redrawCurrentOrFirst(); }
-                        renderTimelineUI();
-                    };
-
-                    if (item.type === 'textSlide') {
-                        const editBtn = document.createElement('button');
-                        editBtn.className = `${btnClass} text-indigo-300`;
-                        editBtn.title = "تعديل النص والألوان"; editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
-                        editBtn.onclick = (e) => { e.stopPropagation(); openTextSlideEditor(index); };
-                        
-                        actionsDiv.appendChild(editBtn);
-                        actionsDiv.appendChild(deleteBtn);
-                    } else {
-                        const fitBtn = document.createElement('button');
-                        fitBtn.className = `${btnClass} text-emerald-400`;
-                        fitBtn.title = "تغيير الامتلاء والمط"; fitBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-                        fitBtn.onclick = (e) => { e.stopPropagation(); const modes = ['stretch', 'contain', 'cover']; let current = item.fitMode || 'stretch'; item.fitMode = modes[(modes.indexOf(current) + 1) % modes.length]; redrawCurrentOrFirst(); };
-
-                        const rotateBtn = document.createElement('button');
-                        rotateBtn.className = `${btnClass} text-blue-400`;
-                        rotateBtn.title = "تدوير الصورة"; rotateBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
-                        rotateBtn.onclick = (e) => { e.stopPropagation(); item.rotation = ((item.rotation || 0) + 90) % 360; redrawCurrentOrFirst(); };
-
-                        actionsDiv.appendChild(fitBtn); 
-                        actionsDiv.appendChild(deleteBtn); 
-                        actionsDiv.appendChild(rotateBtn); 
-                    }
-
-                    el.appendChild(actionsDiv);
-                }
+                el.appendChild(thumb); el.appendChild(iconDiv); el.appendChild(details); el.appendChild(editIcon);
                 timelineContainer.appendChild(el);
             });
         }
 
+        function openClipSettings(index) {
+            if (isPlaying) stopPlayback();
+            editingIndex = index; const item = timeline[index];
+            redrawCurrentOrFirst(); renderTimelineUI(); 
+            clipFitRadios.forEach(r => r.checked = (r.value === item.fitMode));
+            clipZoomInput.value = item.scale; zoomValueDisplay.textContent = Math.round(item.scale * 100) + '%';
+            if (item.type === 'image') { durationControlGroup.style.display = 'block'; clipDurationInput.value = item.duration; } 
+            else { durationControlGroup.style.display = 'none'; }
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+
+        function closeSettingsModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); renderTimelineUI(); }
+
+        clipFitRadios.forEach(radio => { radio.addEventListener('change', (e) => { if(editingIndex >= 0) { timeline[editingIndex].fitMode = e.target.value; redrawCurrentOrFirst(); } }); });
+        clipZoomInput.addEventListener('input', (e) => { if(editingIndex >= 0) { timeline[editingIndex].scale = parseFloat(e.target.value); zoomValueDisplay.textContent = Math.round(timeline[editingIndex].scale * 100) + '%'; redrawCurrentOrFirst(); } });
+        clipRotateBtn.addEventListener('click', () => { if(editingIndex >= 0) { timeline[editingIndex].rotation = ((timeline[editingIndex].rotation || 0) + 90) % 360; redrawCurrentOrFirst(); } });
+        clipDurationInput.addEventListener('change', (e) => { if(editingIndex >= 0 && timeline[editingIndex].type === 'image') { let val = parseFloat(e.target.value); if (val > 0) timeline[editingIndex].duration = val; } });
+        deleteClipBtn.addEventListener('click', () => {
+            if(editingIndex >= 0) {
+                URL.revokeObjectURL(timeline[editingIndex].url); timeline.splice(editingIndex, 1);
+                editingIndex = timeline.length > 0 ? 0 : -1; closeSettingsModal();
+                if(timeline.length === 0) { ctx.clearRect(0,0,defaultWidth,defaultHeight); ctx.fillStyle = '#000'; ctx.fillRect(0,0,defaultWidth,defaultHeight); emptyStateMsg.style.display = 'flex'; } 
+                else { redrawCurrentOrFirst(); }
+            }
+        });
+        closeModalBtn.addEventListener('click', closeSettingsModal); saveModalBtn.addEventListener('click', closeSettingsModal);
+
+
+        // --- التشغيل الموثوق والنظام المقاوم للتجميد (Freeze-Protection) ---
         function playTimelineItem(item, exportMode = false) {
             return new Promise(async (resolve) => {
                 if (!isPlaying) return resolve();
@@ -1392,13 +455,13 @@
                 let lastFrameTime = startTime;
                 const audioMode = getAudioMode();
                 
-                const transDuration = Math.min(1.0, item.duration * 0.5);
-                
                 const checkAndDrawFrame = () => {
                     if (!isPlaying) return resolve();
                     let now = performance.now();
                     
-                    if (now - lastFrameTime > 500) { startTime += (now - lastFrameTime); }
+                    if (now - lastFrameTime > 500) {
+                        startTime += (now - lastFrameTime);
+                    }
                     lastFrameTime = now;
 
                     let elapsedSec = (now - startTime) / 1000;
@@ -1406,29 +469,28 @@
 
                     if (item.type === 'video') {
                         const vid = item.element;
-                        if (vid.ended || vid.currentTime >= item.duration - 0.1 || elapsedSec >= item.duration) { 
-                            vid.pause(); return resolve(); 
+                        if (vid.ended || vid.currentTime >= item.duration - 0.1) {
+                            vid.pause();
+                            return resolve();
                         }
                     } else {
-                        if (elapsedSec >= item.duration) { return resolve(); }
+                        if (elapsedSec >= item.duration) {
+                            return resolve();
+                        }
                     }
                     
-                    let progress = 1;
-                    if (item.transitionType && item.transitionType !== 'none' && elapsedSec < transDuration) {
-                        progress = elapsedSec / transDuration;
-                    }
-
-                    drawMedia(ctx, item, defaultWidth, defaultHeight, progress);
-                    drawFrame(ctx, defaultWidth, defaultHeight, projectFrame);
+                    drawMedia(ctx, item, defaultWidth, defaultHeight);
                     
+                    // خدعة البكسل الشفاف: تجبر بعض الهواتف على عدم إيقاف تسجيل الفيديو للصور الثابتة!
                     if (exportMode) {
-                        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`; ctx.fillRect(0, 0, 1, 1);
+                        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.01})`;
+                        ctx.fillRect(0, 0, 1, 1);
                     }
                     
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 };
 
-                if (item.type === 'image' || item.type === 'textSlide') {
+                if (item.type === 'image') {
                     currentAnimationId = requestAnimationFrame(checkAndDrawFrame);
                 } else if (item.type === 'video') {
                     const vid = item.element; vid.currentTime = 0;
@@ -1464,50 +526,25 @@
             let totalDuration = timeline.reduce((sum, item) => sum + item.duration, 0);
 
             if (exportMode) {
-                document.getElementById('clickBlocker').classList.remove('hidden');
-                document.getElementById('processingUI').classList.remove('hidden'); document.getElementById('processingUI').classList.add('flex');
-                document.getElementById('doneUI').classList.add('hidden'); document.getElementById('doneUI').classList.remove('flex');
-                document.getElementById('exportOverlay').classList.remove('hidden'); document.getElementById('exportOverlay').classList.add('flex');
-                document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('exportProgressText').innerText = '0%';
+                // إظهار نافذة التصدير مع منع النقر على باقي الشاشة دون إخفاء الكانفاس
+                clickBlocker.classList.remove('hidden');
+                processingUI.classList.remove('hidden'); processingUI.classList.add('flex');
+                doneUI.classList.add('hidden'); doneUI.classList.remove('flex');
+                exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
+                exportProgressBar.style.width = '0%'; exportProgressText.innerText = '0%';
                 
-                const canvasStream = canvas.captureStream(projectFPS); 
+                const canvasStream = canvas.captureStream(30);
                 const tracks = [canvasStream.getVideoTracks()[0]];
                 if (audioCtx && destStream) tracks.push(destStream.stream.getAudioTracks()[0]);
                 
                 const combinedStream = new MediaStream(tracks); exportChunks = [];
-                
-                let mimeType = '';
-                if (projectCodec === 'auto') {
-                    const preferredTypes = ['video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
-                    for (let t of preferredTypes) { if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; } }
-                } else if (projectCodec === 'h264') {
-                    let types = ['video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=h264'];
-                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
-                } else if (projectCodec === 'vp9') {
-                    let types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9'];
-                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
-                } else if (projectCodec === 'vp8') {
-                    let types = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8'];
-                    for (let t of types) if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
-                }
-
-                if (!mimeType) mimeType = 'video/webm';
-
-                let options = { mimeType: mimeType };
-                let baseBitrate = 2500000;
-                if (projectResolution >= 1080) baseBitrate = 8000000;
-                else if (projectResolution >= 720) baseBitrate = 5000000;
-                
-                if (projectFPS > 30) baseBitrate *= 1.5; 
-                options.videoBitsPerSecond = baseBitrate;
-
-                try { exportMediaRecorder = new MediaRecorder(combinedStream, options); } 
+                let mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm; codecs=vp8,opus';
+                try { exportMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mime }); } 
                 catch(e) { exportMediaRecorder = new MediaRecorder(combinedStream); }
                 
                 exportMediaRecorder.ondataavailable = e => { if (e.data.size > 0) exportChunks.push(e.data); };
                 exportMediaRecorder.onstop = finalizeExport;
-                
-                try { exportMediaRecorder.start(); } catch(err) { alert("فشل بدء التسجيل."); stopPlayback(); return; }
+                try { exportMediaRecorder.start(1000); } catch(err) { alert("فشل بدء التسجيل في متصفحك."); stopPlayback(); return; }
             }
 
             if (backgroundAudio) {
@@ -1528,18 +565,22 @@
                 if(!isPlaying) { clearInterval(uiTimer); return; }
                 
                 let completedDuration = 0;
-                for(let i=0; i<editingIndex; i++) { completedDuration += timeline[i].duration; }
+                for(let i=0; i<editingIndex; i++) {
+                    completedDuration += timeline[i].duration;
+                }
                 let realElapsed = completedDuration + activeClipElapsedSec;
                 
                 if (exportMode) {
                     let percent = Math.min(100, Math.floor((realElapsed / totalDuration) * 100));
-                    document.getElementById('exportProgressBar').style.width = percent + '%'; 
-                    document.getElementById('exportProgressText').innerText = percent + '%';
+                    exportProgressBar.style.width = percent + '%';
+                    exportProgressText.innerText = percent + '%';
                 }
                 
                 timeDisplay.textContent = formatTime(Math.floor(realElapsed));
+
             }, 200);
 
+            // تشغيل المقاطع بالترتيب
             for (let i = 0; i < timeline.length; i++) {
                 if (!isPlaying) break;
                 await playTimelineItem(timeline[i], exportMode);
@@ -1561,8 +602,8 @@
             if (isExporting && exportMediaRecorder && exportMediaRecorder.state !== 'inactive') {
                 exportMediaRecorder.stop(); 
             } else {
-                document.getElementById('clickBlocker').classList.add('hidden');
-                document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
+                clickBlocker.classList.add('hidden');
+                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
             }
             
             isExporting = false; timeDisplay.textContent = "00:00";
@@ -1575,8 +616,8 @@
         function finalizeExport() {
             stopPlayback();
             if (exportChunks.length === 0) {
-                document.getElementById('clickBlocker').classList.add('hidden');
-                document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
+                clickBlocker.classList.add('hidden');
+                exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
                 alert("حدث خطأ أثناء التصدير."); return;
             }
             
@@ -1584,74 +625,69 @@
             finalVideoExt = type === 'video/mp4' ? 'mp4' : 'webm';
             finalVideoBlob = new Blob(exportChunks, { type: type });
             
-            document.getElementById('processingUI').classList.add('hidden'); document.getElementById('processingUI').classList.remove('flex');
-            document.getElementById('doneUI').classList.remove('hidden'); document.getElementById('doneUI').classList.add('flex');
-            document.getElementById('clickBlocker').classList.remove('hidden');
-            document.getElementById('exportOverlay').classList.remove('hidden'); document.getElementById('exportOverlay').classList.add('flex');
+            processingUI.classList.add('hidden'); processingUI.classList.remove('flex');
+            doneUI.classList.remove('hidden'); doneUI.classList.add('flex');
+            clickBlocker.classList.remove('hidden');
+            exportOverlay.classList.remove('hidden'); exportOverlay.classList.add('flex');
 
             try {
-                const file = new File([finalVideoBlob], `MSL_Video_${Date.now()}.${finalVideoExt}`, { type: type });
+                const file = new File([finalVideoBlob], `Video_${Date.now()}.${finalVideoExt}`, { type: type });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    document.getElementById('finalShareBtn').classList.remove('hidden');
+                    finalShareBtn.classList.remove('hidden');
                 }
             } catch (e) { console.warn("Share API error", e); }
         }
 
         function toggleButtons(playing) {
             if (playing) {
-                document.getElementById('playBtn').classList.add('hidden'); document.getElementById('stopBtn').classList.remove('hidden');
-                document.getElementById('exportBtn').disabled = true; document.getElementById('exportBtn').classList.add('opacity-50');
+                playBtn.classList.add('hidden'); stopBtn.classList.remove('hidden');
+                exportBtn.disabled = true; exportBtn.classList.add('opacity-50');
             } else {
-                document.getElementById('playBtn').classList.remove('hidden'); document.getElementById('stopBtn').classList.add('hidden');
-                document.getElementById('exportBtn').disabled = false; document.getElementById('exportBtn').classList.remove('opacity-50');
+                playBtn.classList.remove('hidden'); stopBtn.classList.add('hidden');
+                exportBtn.disabled = false; exportBtn.classList.remove('opacity-50');
             }
         }
 
         function highlightTimelineItem(index) {
             const items = document.querySelectorAll('.clip-item');
             items.forEach((item, i) => {
-                if(i === index) { 
-                    item.classList.add('bg-gray-800', 'border-indigo-500', 'shadow-[0_0_15px_rgba(99,102,241,0.15)]'); 
-                    item.classList.remove('bg-gray-800/40', 'border-gray-700');
-                } else { 
-                    item.classList.remove('bg-gray-800', 'border-indigo-500', 'shadow-[0_0_15px_rgba(99,102,241,0.15)]'); 
-                    item.classList.add('bg-gray-800/40', 'border-gray-700');
-                }
+                if(i === index) { item.classList.add('active'); item.style.borderColor = '#6366f1'; }
+                else { item.classList.remove('active'); item.style.borderColor = 'transparent'; }
             });
             if (items[index]) items[index].scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
         function removeHighlight() { renderTimelineUI(); }
 
-        document.getElementById('playBtn').addEventListener('click', () => startPlayback(false));
-        document.getElementById('stopBtn').addEventListener('click', stopPlayback);
-        document.getElementById('exportBtn').addEventListener('click', () => {
+        playBtn.addEventListener('click', () => startPlayback(false));
+        stopBtn.addEventListener('click', stopPlayback);
+        exportBtn.addEventListener('click', () => {
             if (timeline.length === 0) { alert("أضف ملفات أولاً!"); return; }
             isExporting = true; startPlayback(true);
         });
 
-        document.getElementById('finalDownloadBtn').addEventListener('click', () => {
+        finalDownloadBtn.addEventListener('click', () => {
             if (!finalVideoBlob) return;
             const url = URL.createObjectURL(finalVideoBlob); 
             const a = document.createElement('a'); a.style.display = 'none';
-            a.href = url; a.download = `MSL_Video_${Date.now()}.${finalVideoExt}`; document.body.appendChild(a); a.click();
+            a.href = url; a.download = `Edited_Video_${Date.now()}.${finalVideoExt}`; document.body.appendChild(a); a.click();
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         });
 
-        document.getElementById('finalShareBtn').addEventListener('click', async () => {
+        finalShareBtn.addEventListener('click', async () => {
             if (!finalVideoBlob) return;
-            const file = new File([finalVideoBlob], `MSL_Video_${Date.now()}.${finalVideoExt}`, { type: finalVideoBlob.type });
+            const file = new File([finalVideoBlob], `Edited_Video_${Date.now()}.${finalVideoExt}`, { type: finalVideoBlob.type });
             try {
                 await navigator.share({
-                    title: 'فيديو جديد من MSL',
+                    title: 'فيديو جديد',
                     text: 'شاهد هذا الفيديو الذي قمت بصناعته!',
                     files: [file]
                 });
             } catch (err) { console.log("تم إلغاء المشاركة", err); }
         });
 
-        document.getElementById('finalCloseBtn').addEventListener('click', () => {
-            document.getElementById('clickBlocker').classList.add('hidden');
-            document.getElementById('exportOverlay').classList.add('hidden'); document.getElementById('exportOverlay').classList.remove('flex');
+        finalCloseBtn.addEventListener('click', () => {
+            clickBlocker.classList.add('hidden');
+            exportOverlay.classList.add('hidden'); exportOverlay.classList.remove('flex');
         });
 
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, defaultWidth, defaultHeight);
